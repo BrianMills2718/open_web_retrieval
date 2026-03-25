@@ -1,6 +1,6 @@
 # Plan #01: Fetch Error Classification
 
-**Status:** Planned
+**Status:** Complete
 **Type:** implementation
 **Priority:** High
 **Blocked By:** None
@@ -184,15 +184,15 @@ Add to `tests/test_fetch_extract.py` (existing file, not a new one):
 
 ## Acceptance Criteria
 
-- [ ] `FetchError` has `retryable: bool` field (default `True`)
-- [ ] 401/403/404/410/451 raise with `retryable=False`
-- [ ] 429/500/502/503/504 raise with `retryable=True`
-- [ ] Timeouts and connection errors raise with `retryable=True`
-- [ ] `blocked_domains` parameter on both `SourceFetcher` and `OpenWebRetrievalClient`
-- [ ] Silent trafilatura swallow replaced with logged warning
-- [ ] research_v3 `loop.py` checks `FetchError.retryable` — skips permanent failures
-- [ ] All existing tests pass
-- [ ] New tests for each classification case
+- [x] `FetchError` has `retryable: bool` field (default `True`)
+- [x] 401/403/404/410/451 raise with `retryable=False`
+- [x] 429/500/502/503/504 raise with `retryable=True`
+- [x] Timeouts and connection errors raise with `retryable=True`
+- [x] `blocked_domains` parameter on both `SourceFetcher` and `OpenWebRetrievalClient`
+- [x] Silent trafilatura swallow replaced with logged warning
+- [x] research_v3 `loop.py` checks `FetchError.retryable` — skips permanent failures
+- [x] All existing tests pass
+- [x] New tests for each classification case
 - [ ] **Gate: research_v3 loop completes F1 in <10 minutes**
 
 ---
