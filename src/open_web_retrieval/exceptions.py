@@ -36,6 +36,16 @@ class FetchError(OpenWebRetrievalError):
 
     error_code = "OPEN_WEB_RETRIEVAL_FETCH_ERROR"
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool = True,
+        context: dict[str, object] | None = None,
+    ) -> None:
+        super().__init__(message, context=context)
+        self.retryable = retryable
+
 
 class RenderError(OpenWebRetrievalError):
     """Failure while rendering via browser automation."""

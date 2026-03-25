@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from hashlib import sha256
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -13,6 +15,11 @@ from open_web_retrieval.models import (
     FetchRequest,
     FetchedResource,
 )
+
+logger = logging.getLogger(__name__)
+
+# HTTP status codes that indicate permanent failures — retrying won't help.
+NON_RETRYABLE_STATUS = {401, 403, 404, 410, 451}
 
 
 def _hash_bytes(payload: bytes) -> str:
@@ -55,7 +62,8 @@ def _extract_with_trafilatura(html_text: str) -> str | None:
             return extracted
     except ModuleNotFoundError:
         return None
-    except Exception:
+    except Exception as exc:
+        logger.warning("trafilatura extraction failed: %s", exc)
         return None
     return None
 
@@ -98,14 +106,34 @@ class SourceFetcher:
         timeout_seconds: float | None = None,
         user_agent_profile: str = "open_web_retrieval/0.1",
         client: httpx.Client | None = None,
+        blocked_domains: set[str] | None = None,
     ) -> None:
-        """Construct a fetcher with injected HTTP transport."""
+        """Construct a fetcher with injected HTTP transport.
+
+        Args:
+            blocked_domains: Set of domain names (without www. prefix) to reject
+                immediately with a non-retryable FetchError.
+        """
         self.client = client or httpx.Client(timeout=timeout_seconds)
         self._owns_client = client is None
         self.user_agent_profile = user_agent_profile
+        self._blocked_domains = blocked_domains or set()
 
     def fetch(self, request: FetchRequest) -> FetchedResource:
-        """Fetch the URL using direct HTTP with normalized provenance output."""
+        """Fetch the URL using direct HTTP with normalized provenance output.
+
+        Raises FetchError with retryable=False for permanent failures (4xx auth/not-found,
+        blocked domains) and retryable=True for transient failures (timeouts, 5xx, rate limits).
+        """
+        # Check blocked domains before making any network request.
+        domain = urlparse(request.url).netloc.removeprefix("www.")
+        if domain in self._blocked_domains:
+            raise FetchError(
+                f"blocked domain: {domain}",
+                retryable=False,
+                context={"url": request.url, "domain": domain},
+            )
+
         headers = {"User-Agent": request.user_agent_profile}
         try:
             if request.render_mode == "always":
@@ -116,11 +144,20 @@ class SourceFetcher:
         except httpx.TimeoutException as exc:
             raise FetchError(
                 "fetch timed out",
+                retryable=True,
                 context={"url": request.url, "method": "httpx"},
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            retryable = exc.response.status_code not in NON_RETRYABLE_STATUS
+            raise FetchError(
+                f"HTTP {exc.response.status_code}",
+                retryable=retryable,
+                context={"url": request.url, "status": exc.response.status_code},
             ) from exc
         except httpx.HTTPError as exc:
             raise FetchError(
                 "fetch failed",
+                retryable=True,
                 context={"url": request.url, "method": "httpx"},
             ) from exc
 
@@ -203,4 +240,3 @@ def _utc_now() -> Any:
     from datetime import datetime, timezone
 
     return datetime.now(tz=timezone.utc)
-

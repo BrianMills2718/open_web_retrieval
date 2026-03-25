@@ -157,3 +157,71 @@ class TestSourceFetcher:
         fetcher = SourceFetcher(client=fetch_client)
         fetcher.close()
         fetcher.close()  # should not raise
+
+
+class TestFetchErrorRetryable:
+    """Tests for FetchError.retryable classification (Plan #01)."""
+
+    def test_fetch_retryable_default_true(self):
+        """FetchError defaults to retryable=True for backward compatibility."""
+        err = FetchError("something failed")
+        assert err.retryable is True
+
+    def test_fetch_403_not_retryable(self):
+        """403 Forbidden (paywall/bot-block) should not be retried."""
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(403, request=req)
+        )
+        client = httpx.Client(transport=transport)
+        fetcher = SourceFetcher(client=client)
+        req = FetchRequest(url="https://paywalled.example.com/article")
+        with pytest.raises(FetchError) as exc_info:
+            fetcher.fetch(req)
+        assert exc_info.value.retryable is False
+        assert "403" in str(exc_info.value)
+
+    def test_fetch_429_retryable(self):
+        """429 Too Many Requests should be retried."""
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(429, request=req)
+        )
+        client = httpx.Client(transport=transport)
+        fetcher = SourceFetcher(client=client)
+        req = FetchRequest(url="https://example.com/api")
+        with pytest.raises(FetchError) as exc_info:
+            fetcher.fetch(req)
+        assert exc_info.value.retryable is True
+
+    def test_fetch_500_retryable(self):
+        """500 Internal Server Error should be retried."""
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(500, request=req)
+        )
+        client = httpx.Client(transport=transport)
+        fetcher = SourceFetcher(client=client)
+        req = FetchRequest(url="https://example.com/page")
+        with pytest.raises(FetchError) as exc_info:
+            fetcher.fetch(req)
+        assert exc_info.value.retryable is True
+
+    def test_fetch_timeout_retryable(self):
+        """Timeout errors should be retried."""
+        transport = httpx.MockTransport(
+            lambda req: (_ for _ in ()).throw(httpx.TimeoutException("timeout"))
+        )
+        client = httpx.Client(transport=transport)
+        fetcher = SourceFetcher(client=client)
+        req = FetchRequest(url="https://example.com/slow")
+        with pytest.raises(FetchError) as exc_info:
+            fetcher.fetch(req)
+        assert exc_info.value.retryable is True
+
+    def test_fetch_blocked_domain(self):
+        """Blocked domains should raise immediately with retryable=False."""
+        fetcher = SourceFetcher(blocked_domains={"reuters.com", "wsj.com"})
+        req = FetchRequest(url="https://www.reuters.com/article/123")
+        with pytest.raises(FetchError) as exc_info:
+            fetcher.fetch(req)
+        assert exc_info.value.retryable is False
+        assert "blocked domain" in str(exc_info.value)
+        assert exc_info.value.context["domain"] == "reuters.com"

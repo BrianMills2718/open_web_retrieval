@@ -36,6 +36,7 @@ class OpenWebRetrievalClient:
         adapters: Mapping[str, SearchAdapter] | None = None,
         cache_dir: str | Path | None = None,
         cache_ttl_seconds: int = 3600,
+        blocked_domains: set[str] | None = None,
     ) -> None:
         """Configure provider adapters, fetcher, and optional disk cache.
 
@@ -43,6 +44,8 @@ class OpenWebRetrievalClient:
             cache_dir: If set, enables disk-based caching for search and fetch.
                 Search results cached by query+provider. Fetched pages cached by URL.
             cache_ttl_seconds: TTL for cache entries (default 1 hour).
+            blocked_domains: Set of domain names to reject immediately without
+                fetching. Passed through to SourceFetcher.
         """
         configured_adapters: list[SearchAdapter] = []
         if adapters is not None:
@@ -62,7 +65,10 @@ class OpenWebRetrievalClient:
             )
 
         self.adapters = SearchAdapterFactory(list(configured_adapters))
-        self.fetcher = SourceFetcher(timeout_seconds=timeout_seconds)
+        self.fetcher = SourceFetcher(
+            timeout_seconds=timeout_seconds,
+            blocked_domains=blocked_domains,
+        )
         self.default_providers = tuple(self.adapters.adapters.keys())
 
         self._search_cache: DiskCache | None = None
