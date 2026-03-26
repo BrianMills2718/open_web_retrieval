@@ -33,6 +33,22 @@ logger = logging.getLogger(__name__)
 # HTTP status codes that indicate permanent failures — retrying won't help.
 NON_RETRYABLE_STATUS = {401, 403, 404, 410, 451}
 
+# Domains known to block automated fetching. Skip immediately rather than
+# burning 3 retries × backoff (~30s) per URL. Consumers can override via
+# SourceFetcher(blocked_domains=...).
+KNOWN_BLOCKED_DOMAINS: set[str] = {
+    "reuters.com",
+    "thehill.com",
+    "visualcapitalist.com",
+    "wsj.com",
+    "ft.com",
+    "bloomberg.com",
+    "nytimes.com",
+    "washingtonpost.com",
+    "economist.com",
+    "foreignaffairs.com",
+}
+
 # Default wait when a 429 response lacks a Retry-After header.
 _DEFAULT_RETRY_AFTER_SECONDS = 5.0
 
@@ -275,7 +291,7 @@ class SourceFetcher:
         self.client = client or httpx.Client(timeout=timeout_seconds)
         self._owns_client = client is None
         self.user_agent_profile = user_agent_profile
-        self._blocked_domains = blocked_domains or set()
+        self._blocked_domains = (blocked_domains or set()) | KNOWN_BLOCKED_DOMAINS
         self._rate_limit = rate_limit_per_second
         self._last_request: dict[str, float] = {}  # domain -> monotonic timestamp
         self.metrics = FetchMetrics()
