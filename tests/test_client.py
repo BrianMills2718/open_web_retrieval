@@ -111,3 +111,98 @@ class TestClientExceptions:
         err = ProviderUnavailableError("test", context={"key": "value"})
         assert err.context["key"] == "value"
         assert str(err) == "test"
+
+
+class TestSearchDedup:
+    """Tests for search result deduplication by URL (Plan #03)."""
+
+    def test_search_dedup_by_url(self):
+        """Duplicate URLs from two providers are kept only once."""
+        import httpx
+        from open_web_retrieval.adapters.brave import BraveSearchAdapter
+        from open_web_retrieval.adapters.searxng import SearxNGSearchAdapter
+
+        # Both providers return a result with the same URL
+        brave_results = [{
+            "title": "Brave Result",
+            "url": "https://example.com/shared",
+            "description": "From Brave",
+        }]
+        searxng_results = [{
+            "title": "SearxNG Result",
+            "url": "https://example.com/shared",
+            "content": "From SearxNG",
+        }]
+
+        brave_transport = httpx.MockTransport(
+            lambda req: httpx.Response(200, json={"web": {"results": brave_results}}, request=req)
+        )
+        searxng_transport = httpx.MockTransport(
+            lambda req: httpx.Response(200, json={"results": searxng_results}, request=req)
+        )
+
+        client = OpenWebRetrievalClient(
+            adapters={
+                "brave": BraveSearchAdapter(
+                    api_key="key", client=httpx.Client(transport=brave_transport)
+                ),
+                "searxng": SearxNGSearchAdapter(
+                    base_url="http://localhost:8080", client=httpx.Client(transport=searxng_transport)
+                ),
+            },
+        )
+
+        query = SearchQuery(query="test", providers=("brave", "searxng"), top_k=10)
+        hits = client.search(query)
+
+        # Should have only 1 hit, not 2
+        urls = [h.url for h in hits]
+        assert len(urls) == 1, f"Expected 1 deduped hit, got {len(urls)}: {urls}"
+        assert urls[0] == "https://example.com/shared"
+
+    def test_search_dedup_preserves_order(self):
+        """First occurrence (from first provider) wins in deduplication."""
+        import httpx
+        from open_web_retrieval.adapters.brave import BraveSearchAdapter
+        from open_web_retrieval.adapters.searxng import SearxNGSearchAdapter
+
+        brave_results = [
+            {"title": "Brave First", "url": "https://example.com/shared", "description": "B"},
+            {"title": "Brave Unique", "url": "https://example.com/brave-only", "description": "B"},
+        ]
+        searxng_results = [
+            {"title": "SearxNG Dupe", "url": "https://example.com/shared", "content": "S"},
+            {"title": "SearxNG Unique", "url": "https://example.com/searxng-only", "content": "S"},
+        ]
+
+        brave_transport = httpx.MockTransport(
+            lambda req: httpx.Response(200, json={"web": {"results": brave_results}}, request=req)
+        )
+        searxng_transport = httpx.MockTransport(
+            lambda req: httpx.Response(200, json={"results": searxng_results}, request=req)
+        )
+
+        client = OpenWebRetrievalClient(
+            adapters={
+                "brave": BraveSearchAdapter(
+                    api_key="key", client=httpx.Client(transport=brave_transport)
+                ),
+                "searxng": SearxNGSearchAdapter(
+                    base_url="http://localhost:8080", client=httpx.Client(transport=searxng_transport)
+                ),
+            },
+        )
+
+        query = SearchQuery(query="test", providers=("brave", "searxng"), top_k=10)
+        hits = client.search(query)
+
+        # 3 unique URLs: shared (from brave), brave-only, searxng-only
+        urls = [h.url for h in hits]
+        assert len(urls) == 3, f"Expected 3 deduped hits, got {len(urls)}: {urls}"
+        # First occurrence of shared URL should be from brave
+        shared_hit = [h for h in hits if h.url == "https://example.com/shared"][0]
+        assert shared_hit.provider == "brave", "First occurrence (brave) should win"
+        # Order preserved: brave hits first, then unique searxng hits
+        assert urls[0] == "https://example.com/shared"
+        assert urls[1] == "https://example.com/brave-only"
+        assert urls[2] == "https://example.com/searxng-only"

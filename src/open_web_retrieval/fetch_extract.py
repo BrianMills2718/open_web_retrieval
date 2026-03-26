@@ -89,49 +89,99 @@ def _parse_retry_after(header_value: str) -> float:
     return _DEFAULT_RETRY_AFTER_SECONDS
 
 
-def _extract_with_trafilatura(html_text: str) -> str | None:
-    """Attempt Trafilatura extraction and return a plain-text body."""
-    try:
-        from trafilatura import extract
+def _strip_frontmatter(md: str) -> str:
+    """Remove YAML frontmatter (---\n...\n---) that trafilatura adds to markdown output."""
+    if md.startswith("---"):
+        end = md.find("---", 3)
+        if end != -1:
+            stripped = md[end + 3:].lstrip("\n")
+            return stripped
+    return md
 
-        extracted = extract(html_text)
-        if extracted:
-            return extracted
-    except ModuleNotFoundError:
+
+def _parse_date_string(date_str: str | None) -> _datetime | None:
+    """Parse a date string (e.g. '2026-01-15') into a datetime, or None on failure."""
+    if not date_str:
         return None
+    try:
+        return _datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=_timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _extract_with_trafilatura(html_text: str, url: str | None = None) -> tuple[str, str, dict]:
+    """Extract text, markdown, and metadata from HTML via trafilatura.
+
+    Returns (plain_text, markdown, metadata_dict). On failure or missing
+    trafilatura, returns ("", "", {}).
+    """
+    try:
+        from trafilatura import bare_extraction, extract
+    except ModuleNotFoundError:
+        return ("", "", {})
+
+    try:
+        # Get structured metadata via bare_extraction
+        doc = bare_extraction(html_text, url=url, with_metadata=True)
+
+        # Get markdown content
+        md = extract(html_text, output_format="markdown", include_links=True,
+                     include_tables=True, url=url)
+
+        # Get plain text
+        txt = extract(html_text, output_format="txt", url=url)
+
+        metadata: dict = {}
+        if doc:
+            metadata = {
+                "title": doc.title,
+                "author": doc.author,
+                "date": doc.date,
+                "sitename": doc.sitename,
+            }
+
+        return (txt or "", _strip_frontmatter(md) if md else "", metadata)
     except Exception as exc:
         logger.warning("trafilatura extraction failed: %s", exc)
-        return None
-    return None
+        return ("", "", {})
 
 
-def _extract_text(resource: FetchedResource, *, method: str) -> tuple[str, str, list[str]]:
+def _extract_text(
+    resource: FetchedResource, *, method: str,
+) -> tuple[str, str, dict, str, list[str]]:
     """Normalize extraction with optional Trafilatura path.
 
-    Returns body text, method used, and warnings.
+    Returns (text, markdown, metadata, method_used, warnings).
     """
     warnings: list[str] = []
     if "html" not in (resource.content_type or "").lower() and not resource.content_bytes:
         warnings.append("non-text or empty payload; extraction is best effort")
-        return "", "binary", warnings
+        return "", "", {}, "binary", warnings
 
     html_text = _decode_text(resource.content_bytes)
     trafilatura_preferred = method == "trafilatura" and resource.fetch_method != "render_playwright"
 
-    extracted = None
+    text: str | None = None
+    markdown: str = ""
+    metadata: dict = {}
     used = "fallback_strip"
+
     if trafilatura_preferred:
-        extracted = _extract_with_trafilatura(html_text)
-        if extracted:
+        txt, md, meta = _extract_with_trafilatura(html_text, url=resource.requested_url)
+        if txt:
+            text = txt
+            markdown = md
+            metadata = meta
             used = "trafilatura"
         else:
             warnings.append("Trafilatura unavailable or extraction failed; using fallback")
 
-    if extracted is None:
-        extracted = _strip_html_tags(html_text)
-        if not extracted:
+    if text is None:
+        text = _strip_html_tags(html_text)
+        if not text:
             warnings.append("fallback extractor returned empty body")
-    return extracted or "", used, warnings
+
+    return text or "", markdown, metadata, used, warnings
 
 
 class SourceFetcher:
@@ -300,14 +350,15 @@ class SourceFetcher:
 
     def extract(self, resource: FetchedResource, *, method: str = "trafilatura") -> ExtractedDocument:
         """Extract normalized text and provenance from fetched bytes."""
-        text, method_used, warnings = _extract_text(resource, method=method)
+        text, markdown, metadata, method_used, warnings = _extract_text(resource, method=method)
         return ExtractedDocument(
             source_url=resource.requested_url,
             final_url=resource.final_url,
-            title=None,
-            publisher_guess=None,
-            published_at_guess=None,
+            title=metadata.get("title"),
+            publisher_guess=metadata.get("sitename") or metadata.get("author"),
+            published_at_guess=_parse_date_string(metadata.get("date")),
             text=text,
+            markdown=markdown,
             document_type="html" if "html" in (resource.content_type or "").lower() else "unknown",
             extraction_method=method_used,
             warnings=warnings,

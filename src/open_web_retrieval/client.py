@@ -134,7 +134,15 @@ class OpenWebRetrievalClient:
                 "search returned no results",
                 context={"query": query.query, "failures": failures},
             )
-        return combined_hits[: query.top_k]
+
+        # Dedup by URL — keep first occurrence (highest-ranked provider)
+        seen_urls: set[str] = set()
+        deduped: list[SearchHit] = []
+        for hit in combined_hits:
+            if hit.url not in seen_urls:
+                seen_urls.add(hit.url)
+                deduped.append(hit)
+        return deduped[: query.top_k]
 
     def retrieve(
         self,

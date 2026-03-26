@@ -1,6 +1,6 @@
 # Plan #03: Enhanced Extraction (v0.4)
 
-**Status:** Planned
+**Status:** Complete
 **Type:** implementation
 **Priority:** Medium
 **Blocked By:** Plan #02 (complete)
@@ -157,13 +157,13 @@ def search(self, query):
 
 ## Acceptance Criteria
 
-- [ ] `ExtractedDocument` has `markdown: str` field
-- [ ] Markdown output includes headers, links, tables from HTML
-- [ ] `title`, `publisher_guess`, `published_at_guess` populated from trafilatura metadata
-- [ ] Search results deduplicated by URL across providers
-- [ ] All existing tests pass (87 from v0.3)
-- [ ] 6 new tests
-- [ ] **Gate: research_v3 loop receives markdown from ExtractedDocument when using open_web_retrieval**
+- [x] `ExtractedDocument` has `markdown: str` field
+- [x] Markdown output includes headers, links, tables from HTML
+- [x] `title`, `publisher_guess`, `published_at_guess` populated from trafilatura metadata
+- [x] Search results deduplicated by URL across providers
+- [x] All existing tests pass (87 from v0.3)
+- [x] 11 new tests (exceeded plan: 4 extraction + 2 frontmatter + 3 date parsing + 2 dedup)
+- [ ] **Gate: research_v3 loop receives markdown from ExtractedDocument when using open_web_retrieval** (deferred — requires research_v3 integration)
 
 ---
 

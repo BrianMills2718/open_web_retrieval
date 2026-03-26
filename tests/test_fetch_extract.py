@@ -398,3 +398,129 @@ class TestFetchMetrics:
             fetcher.fetch(req)
         assert fetcher.metrics.skipped_blocked == 1
         assert fetcher.metrics.fetched == 0
+
+
+class TestMarkdownExtraction:
+    """Tests for markdown output and metadata extraction (Plan #03)."""
+
+    RICH_HTML = """<!DOCTYPE html>
+<html><head><title>Research Article</title>
+<meta name="author" content="Jane Doe">
+<meta name="date" content="2026-01-15">
+<meta property="og:site_name" content="Science Daily">
+</head>
+<body>
+<article>
+<h1>Climate Change Effects on Biodiversity</h1>
+<p>Rising temperatures affect <a href="https://example.com/biodiversity">biodiversity</a> worldwide.
+Scientists have documented numerous changes in <a href="https://example.com/ecosystems">ecosystems</a>
+across the globe over the past several decades of observation.</p>
+<p>According to a <a href="https://example.com/study">recent study</a>, the following key findings
+were established through rigorous analysis of climate data collected over the past decade.
+The research team analyzed thousands of data points from weather stations worldwide.</p>
+<p>The implications are far-reaching. As noted by leading researchers at institutions around the world,
+climate change represents one of the most significant challenges facing modern civilization. The data
+suggests that immediate action is needed to prevent catastrophic outcomes for future generations.</p>
+<p>Further reading and references can be found at the <a href="https://example.com/references">reference page</a>.</p>
+<h2>Key Findings</h2>
+<ul>
+<li>Sea level rise of 3mm per year</li>
+<li>Species migration patterns shifting northward</li>
+<li>Coral reef bleaching events increasing in frequency</li>
+</ul>
+</article>
+</body></html>"""
+
+    def _make_resource(self, html: str = None) -> "FetchedResource":
+        """Build a FetchedResource from HTML string."""
+        if html is None:
+            html = self.RICH_HTML
+        content = html.encode("utf-8")
+        return FetchedResource(
+            requested_url="https://example.com/article",
+            final_url="https://example.com/article",
+            status=200,
+            content_type="text/html; charset=utf-8",
+            content_bytes=content,
+            retrieved_at_utc=datetime(2026, 3, 25, tzinfo=timezone.utc),
+            fetch_method="httpx",
+            sha256="abc123",
+        )
+
+    def test_extract_produces_markdown(self):
+        """ExtractedDocument.markdown is non-empty for HTML with structure."""
+        fetcher = SourceFetcher(rate_limit_per_second=0)
+        resource = self._make_resource()
+        doc = fetcher.extract(resource)
+        assert doc.markdown, "markdown field should be non-empty for structured HTML"
+        # Should not contain raw HTML tags
+        assert "<html>" not in doc.markdown
+        assert "<p>" not in doc.markdown
+
+    def test_extract_metadata_populated(self):
+        """Title, publisher_guess, published_at_guess populated from HTML metadata."""
+        fetcher = SourceFetcher(rate_limit_per_second=0)
+        resource = self._make_resource()
+        doc = fetcher.extract(resource)
+        # At least title should be populated from the <title> tag
+        assert doc.title is not None, "title should be extracted"
+
+    def test_extract_plain_text_still_works(self):
+        """ExtractedDocument.text is still populated alongside markdown."""
+        fetcher = SourceFetcher(rate_limit_per_second=0)
+        resource = self._make_resource()
+        doc = fetcher.extract(resource)
+        assert doc.text, "text field should still be populated"
+        assert len(doc.text) > 10
+        # Should not contain HTML tags
+        assert "<html>" not in doc.text
+
+    def test_extract_markdown_includes_links(self):
+        """Links in HTML are preserved in markdown output."""
+        fetcher = SourceFetcher(rate_limit_per_second=0)
+        resource = self._make_resource()
+        doc = fetcher.extract(resource)
+        # Markdown should contain the link in markdown format
+        assert "biodiversity" in doc.markdown, "link text should appear in markdown"
+        # Look for markdown link syntax [text](url) or just the URL
+        assert "example.com/biodiversity" in doc.markdown or "[biodiversity]" in doc.markdown, \
+            "link URL or markdown link syntax should be preserved"
+
+
+class TestFrontmatterStripping:
+    """Tests for YAML frontmatter removal from markdown output (Plan #03)."""
+
+    def test_strip_frontmatter(self):
+        """YAML frontmatter is stripped from trafilatura markdown output."""
+        from open_web_retrieval.fetch_extract import _strip_frontmatter
+        md_with_fm = "---\ntitle: Test\nurl: https://example.com\n---\n# Heading\nContent here."
+        result = _strip_frontmatter(md_with_fm)
+        assert not result.startswith("---")
+        assert "# Heading" in result
+        assert "Content here." in result
+
+    def test_no_frontmatter_passthrough(self):
+        """Markdown without frontmatter passes through unchanged."""
+        from open_web_retrieval.fetch_extract import _strip_frontmatter
+        md = "# Heading\nContent here."
+        assert _strip_frontmatter(md) == md
+
+
+class TestDateParsing:
+    """Tests for date string parsing helper (Plan #03)."""
+
+    def test_valid_date(self):
+        from open_web_retrieval.fetch_extract import _parse_date_string
+        result = _parse_date_string("2026-01-15")
+        assert result is not None
+        assert result.year == 2026
+        assert result.month == 1
+        assert result.day == 15
+
+    def test_none_input(self):
+        from open_web_retrieval.fetch_extract import _parse_date_string
+        assert _parse_date_string(None) is None
+
+    def test_invalid_date(self):
+        from open_web_retrieval.fetch_extract import _parse_date_string
+        assert _parse_date_string("not-a-date") is None

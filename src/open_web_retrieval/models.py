@@ -109,6 +109,7 @@ class ExtractedDocument(BaseModel):
     publisher_guess: str | None = None
     published_at_guess: datetime | None = None
     text: str
+    markdown: str = ""
     document_type: str
     extraction_method: str
     warnings: list[str] = Field(default_factory=list)
