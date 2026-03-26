@@ -28,9 +28,12 @@ Plan #03 complete, 98 tests.
 trafilatura version pinned. Version bumped to 0.4.0. README rewrite with code
 examples. CI via GitHub Actions (py3.10, py3.12). Plan #04 complete.
 
-**What's next:** v0.5 (anti-bot via Crawl4AI) is deferred until proven necessary.
-v1.0 (shareable library) is gated on ROADMAP Phase 4. The library is feature-complete
-for current consumer needs.
+**v0.5 (shipped, 2026-03-25):** Crawl4AI anti-bot escalation. Optional `[antibot]` dep.
+`enable_antibot=True` triggers browser-based fetch on HTTP 403. Escalation is not a
+retry — it's a different mechanism. Plan #05 complete, 106 tests.
+
+**What's next:** v1.0 (shareable library) is gated on ROADMAP Phase 4. The library
+is feature-complete for current consumer needs.
 
 ---
 
