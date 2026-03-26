@@ -417,13 +417,41 @@ class SourceFetcher:
                 self.metrics.total_wait_seconds += wait
         self._last_request[domain] = time.monotonic()
 
-    def _crawl4ai_fetch(self, url: str) -> FetchedResource:
+    def _crawl4ai_fetch(
+        self,
+        url: str,
+        *,
+        trace_id: str | None = None,
+        task: str | None = None,
+        fallback_reason: str = "http_403_antibot",
+    ) -> FetchedResource:
         """Attempt browser-based fetch via Crawl4AI for anti-bot bypass.
 
         Uses AsyncWebCrawler with headless Chromium to bypass anti-bot
         protections that block plain HTTP requests. Raises FetchError
         on failure.
         """
+        call_id = make_tool_call_id()
+        started_at = utc_now_iso()
+        started_monotonic = time.monotonic() if self.tool_call_logger is not None else None
+        emit_tool_call(
+            self.tool_call_logger,
+            call_id=call_id,
+            tool_name="open_web_retrieval",
+            operation="fetch",
+            provider="crawl4ai",
+            target=url,
+            status="started",
+            started_at=started_at,
+            attempt=2,
+            task=task,
+            trace_id=trace_id,
+            metrics={
+                "fallback_reason": fallback_reason,
+                "fallback_from_provider": "httpx",
+            },
+        )
+
         from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
 
         async def _fetch():
@@ -451,7 +479,56 @@ class SourceFetcher:
                     sha256=_hash_bytes(html_bytes),
                 )
 
-        return _run_async(_fetch())
+        try:
+            resource = _run_async(_fetch())
+        except Exception as exc:
+            emit_tool_call(
+                self.tool_call_logger,
+                call_id=call_id,
+                tool_name="open_web_retrieval",
+                operation="fetch",
+                provider="crawl4ai",
+                target=url,
+                status="failed",
+                started_at=started_at,
+                ended_at=utc_now_iso(),
+                duration_ms_value=duration_ms(started_monotonic) if started_monotonic is not None else None,
+                attempt=2,
+                task=task,
+                trace_id=trace_id,
+                metrics={
+                    "fallback_reason": fallback_reason,
+                    "fallback_from_provider": "httpx",
+                },
+                error_type=exc.__class__.__name__,
+                error_message=str(exc),
+            )
+            raise
+
+        emit_tool_call(
+            self.tool_call_logger,
+            call_id=call_id,
+            tool_name="open_web_retrieval",
+            operation="fetch",
+            provider="crawl4ai",
+            target=url,
+            status="succeeded",
+            started_at=started_at,
+            ended_at=utc_now_iso(),
+            duration_ms_value=duration_ms(started_monotonic) if started_monotonic is not None else None,
+            attempt=2,
+            task=task,
+            trace_id=trace_id,
+            metrics={
+                "fallback_reason": fallback_reason,
+                "fallback_from_provider": "httpx",
+                "http_status": resource.status,
+                "content_type": resource.content_type,
+                "byte_count": len(resource.content_bytes),
+                "final_url": resource.final_url,
+            },
+        )
+        return resource
 
     def fetch(
         self,
@@ -652,10 +729,39 @@ class SourceFetcher:
             else:
                 # Escalate 403 to browser-based fetch when antibot is enabled
                 if exc.response.status_code == 403 and self._enable_antibot:
+                    emit_tool_call(
+                        self.tool_call_logger,
+                        call_id=call_id,
+                        tool_name="open_web_retrieval",
+                        operation="fetch",
+                        provider="httpx",
+                        target=request.url,
+                        status="failed",
+                        started_at=started_at,
+                        ended_at=utc_now_iso(),
+                        duration_ms_value=duration_ms(started_monotonic) if started_monotonic is not None else None,
+                        attempt=1,
+                        task=task,
+                        trace_id=trace_id,
+                        metrics={
+                            **base_metrics,
+                            "http_status": 403,
+                            "retryable": False,
+                            "fallback_provider": "crawl4ai",
+                            "fallback_reason": "http_403_antibot",
+                        },
+                        error_type="HTTPStatusError",
+                        error_message="HTTP 403",
+                    )
                     try:
                         logger.info("Escalating to crawl4ai for anti-bot: %s", request.url)
                         self.metrics.escalated += 1
-                        resource = self._crawl4ai_fetch(request.url)
+                        resource = self._crawl4ai_fetch(
+                            request.url,
+                            trace_id=trace_id,
+                            task=task,
+                            fallback_reason="http_403_antibot",
+                        )
                         logger.info("FETCH_ESCALATED url=%s method=crawl4ai", request.url)
                         return resource
                     except Exception as antibot_exc:
@@ -871,7 +977,11 @@ class SourceFetcher:
                         render_mode="always",
                         user_agent_profile=self.user_agent_profile,
                     )
-                    rendered_resource = self.fetch(rendered_request)
+                    rendered_resource = self.fetch(
+                        rendered_request,
+                        trace_id=trace_id,
+                        task=task,
+                    )
                     rendered_resource = FetchedResource(
                         requested_url=rendered_resource.requested_url,
                         final_url=rendered_resource.final_url,

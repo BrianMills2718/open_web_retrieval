@@ -1,6 +1,6 @@
 # Plan #09: grounded-research Retrieval Follow-Ups
 
-**Status:** Planned
+**Status:** In Progress
 **Type:** implementation
 **Priority:** High
 **Blocked By:** None
@@ -82,6 +82,14 @@ re-solved inside application repos.
 - ensure failed primary paths and successful fallback paths are both visible in
   shared logs
 
+**Completed 2026-03-26 (fallback-visibility slice)**
+- anti-bot 403 escalation now logs the failed primary `httpx` fetch before
+  attempting `crawl4ai`
+- `crawl4ai` fallback attempts emit their own started/succeeded/failed rows
+- SPA auto-render fallback now preserves `trace_id` and `task` when it re-fetches
+  via Playwright
+- verified with focused fetch/extract and client tests
+
 ### Step 2: Improve retrieval diagnostics on the existing tool-call surface
 
 - make it easier to answer which provider/domain/extractor failed most
@@ -94,6 +102,11 @@ re-solved inside application repos.
   and `task`
 - close any gaps so consumers get observability by default when they pass those
   values once
+
+**Partially completed 2026-03-26**
+- closed the sync SPA auto-render gap where `extract()` re-fetched without
+  forwarding `trace_id` and `task`
+- remaining work, if needed, is async parity and any uncovered edge paths
 
 ### Step 4: Verify against downstream-triggered questions
 

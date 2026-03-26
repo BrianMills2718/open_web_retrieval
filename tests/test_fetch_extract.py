@@ -552,7 +552,7 @@ class TestDateParsing:
 class TestAntibotEscalation:
     """Tests for Crawl4AI anti-bot escalation (Plan #05)."""
 
-    def _make_403_fetcher(self, *, enable_antibot: bool = True):
+    def _make_403_fetcher(self, *, enable_antibot: bool = True, tool_call_logger=None):
         """Create a SourceFetcher with a 403-returning transport and mocked crawl4ai import."""
         import sys
         import types
@@ -574,11 +574,14 @@ class TestAntibotEscalation:
                 client=client,
                 rate_limit_per_second=0,
                 enable_antibot=enable_antibot,
+                tool_call_logger=tool_call_logger,
             )
+        fetcher._test_crawl4ai_module = mock_crawl4ai
         return fetcher
 
     def test_403_escalates_when_antibot_enabled(self):
         """403 + enable_antibot=True calls _crawl4ai_fetch."""
+        import sys
         import unittest.mock
 
         fetcher = self._make_403_fetcher(enable_antibot=True)
@@ -594,12 +597,53 @@ class TestAntibotEscalation:
             sha256="abc123",
         )
 
-        with unittest.mock.patch.object(fetcher, "_crawl4ai_fetch", return_value=mock_resource) as mock_fetch:
-            req = FetchRequest(url="https://protected.example.com/page")
-            result = fetcher.fetch(req)
+        with unittest.mock.patch.dict(sys.modules, {"crawl4ai": fetcher._test_crawl4ai_module}):
+            with unittest.mock.patch.object(fetcher, "_crawl4ai_fetch", return_value=mock_resource) as mock_fetch:
+                req = FetchRequest(url="https://protected.example.com/page")
+                result = fetcher.fetch(req)
 
-        mock_fetch.assert_called_once_with("https://protected.example.com/page")
+        mock_fetch.assert_called_once_with(
+            "https://protected.example.com/page",
+            trace_id=None,
+            task=None,
+            fallback_reason="http_403_antibot",
+        )
         assert result.fetch_method == "crawl4ai"
+
+    def test_403_escalation_emits_primary_failure_and_fallback_success(self, fake_tool_call_logger):
+        """403 escalation should log both the failed primary path and crawl4ai success."""
+        import sys
+        from types import SimpleNamespace
+        import unittest.mock
+
+        records, logger = fake_tool_call_logger
+        fetcher = self._make_403_fetcher(enable_antibot=True, tool_call_logger=logger)
+
+        crawler = unittest.mock.AsyncMock()
+        crawler.__aenter__.return_value = crawler
+        crawler.__aexit__.return_value = False
+        crawler.arun.return_value = SimpleNamespace(
+            success=True,
+            html="<html>browser content</html>",
+            url="https://protected.example.com/page",
+            status_code=200,
+        )
+        fetcher._test_crawl4ai_module.AsyncWebCrawler.return_value = crawler
+
+        req = FetchRequest(url="https://protected.example.com/page")
+        with unittest.mock.patch.dict(sys.modules, {"crawl4ai": fetcher._test_crawl4ai_module}):
+            fetcher.fetch(req, trace_id="trace_antibot", task="collect")
+
+        failures = [record for record in records if record.operation == "fetch" and record.status == "failed"]
+        successes = [record for record in records if record.operation == "fetch" and record.status == "succeeded"]
+        assert len(failures) == 1
+        assert failures[0].provider == "httpx"
+        assert failures[0].trace_id == "trace_antibot"
+        assert failures[0].metrics["fallback_provider"] == "crawl4ai"
+        assert failures[0].metrics["fallback_reason"] == "http_403_antibot"
+        assert len(successes) == 1
+        assert successes[0].provider == "crawl4ai"
+        assert successes[0].trace_id == "trace_antibot"
 
     def test_403_no_escalation_when_antibot_disabled(self):
         """403 + enable_antibot=False raises FetchError immediately."""
@@ -739,6 +783,45 @@ shell or single-page application bootstrap.</p>
         from open_web_retrieval.fetch_extract import _looks_like_js_shell
 
         assert _looks_like_js_shell(b"", "") is False
+
+    def test_auto_render_refetch_preserves_trace_and_task(self, fake_tool_call_logger):
+        """SPA auto-render fallback should preserve trace/task on the fetch path."""
+        import unittest.mock
+
+        records, logger = fake_tool_call_logger
+        fetcher = SourceFetcher(rate_limit_per_second=0, tool_call_logger=logger)
+        js_shell_resource = FetchedResource(
+            requested_url="https://spa.example.com/page",
+            final_url="https://spa.example.com/page",
+            status=200,
+            content_type="text/html",
+            content_bytes=self.JS_SHELL_HTML,
+            retrieved_at_utc=datetime(2026, 3, 25, tzinfo=timezone.utc),
+            fetch_method="httpx",
+            sha256="spa123",
+        )
+
+        with unittest.mock.patch.object(
+            fetcher,
+            "_render",
+            return_value=httpx.Response(
+                200,
+                content=self.NORMAL_HTML,
+                headers={"content-type": "text/html; charset=utf-8"},
+                request=httpx.Request("GET", "https://spa.example.com/page"),
+            ),
+        ):
+            document = fetcher.extract(
+                js_shell_resource,
+                trace_id="trace_spa_render",
+                task="collect",
+            )
+
+        assert document.extraction_method.endswith("+render")
+        fetch_records = [record for record in records if record.operation == "fetch"]
+        assert fetch_records, "expected auto-render fetch records"
+        assert all(record.trace_id == "trace_spa_render" for record in fetch_records)
+        assert all(record.task == "collect" for record in fetch_records)
 
     def test_auto_render_disabled(self):
         """SPA detection does not fire when enable_auto_render=False."""
