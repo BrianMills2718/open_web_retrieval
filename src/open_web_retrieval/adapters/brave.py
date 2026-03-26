@@ -148,7 +148,20 @@ class BraveSearchAdapter(SearchAdapter):
             )
         return hits
 
-    def __del__(self) -> None:
-        """Close owned HTTP client to avoid leaked sockets."""
+    def close(self) -> None:
+        """Close owned HTTP client to release sockets."""
         if getattr(self, "_owns_client", False):
             self.client.close()
+
+    def __enter__(self):
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager — release resources."""
+        self.close()
+        return False
+
+    def __del__(self) -> None:
+        """Close owned HTTP client at object deletion (fallback)."""
+        self.close()

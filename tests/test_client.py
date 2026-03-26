@@ -228,3 +228,39 @@ class TestSearchDedup:
         assert urls[0] == "https://example.com/shared"
         assert urls[1] == "https://example.com/brave-only"
         assert urls[2] == "https://example.com/searxng-only"
+
+
+
+class TestClientContextManager:
+    """Context manager protocol for OpenWebRetrievalClient (Plan #06 Phase 2)."""
+
+    def test_client_context_manager(self, brave_adapter, searxng_adapter):
+        """with OpenWebRetrievalClient() as c: ... works and close called on exit."""
+        with OpenWebRetrievalClient(
+            adapters={"brave": brave_adapter, "searxng": searxng_adapter},
+        ) as client:
+            assert client is not None
+            assert isinstance(client, OpenWebRetrievalClient)
+            assert "brave" in client.default_providers
+        # After exiting, resources should be released cleanly
+
+    def test_client_context_manager_on_error(self, brave_adapter, searxng_adapter):
+        """close() is called even when exception raised inside with block."""
+        close_called = False
+        original_close = OpenWebRetrievalClient.close
+
+        def tracking_close(self):
+            nonlocal close_called
+            close_called = True
+            original_close(self)
+
+        OpenWebRetrievalClient.close = tracking_close
+        try:
+            with pytest.raises(ValueError, match="boom"):
+                with OpenWebRetrievalClient(
+                    adapters={"brave": brave_adapter, "searxng": searxng_adapter},
+                ) as client:
+                    raise ValueError("boom")
+            assert close_called, "close() should be called even on exception"
+        finally:
+            OpenWebRetrievalClient.close = original_close

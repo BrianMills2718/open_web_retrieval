@@ -105,6 +105,28 @@ class OpenWebRetrievalClient:
             self._search_cache = DiskCache(cache_path / "search", default_ttl_seconds=cache_ttl_seconds)
             self._fetch_cache = DiskCache(cache_path / "fetch", default_ttl_seconds=cache_ttl_seconds)
 
+    def close(self) -> None:
+        """Release resources held by the client and its fetcher."""
+        self.fetcher.close()
+        # Close any adapter clients
+        for adapter in self.adapters.adapters.values():
+            if hasattr(adapter, 'close'):
+                adapter.close()
+
+    def __enter__(self):
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager — release resources."""
+        self.close()
+        return False
+
+    def __del__(self) -> None:
+        """Close resources at object deletion (fallback)."""
+        if getattr(self, 'fetcher', None) is not None:
+            self.close()
+
     def _search_cache_key(self, query: SearchQuery, provider: str) -> str:
         """Build a deterministic cache key for a search query + provider."""
         return f"search:{provider}:{query.query}:top_k={query.top_k}:recency={query.recency_days}"

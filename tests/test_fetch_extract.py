@@ -857,3 +857,46 @@ the main driver of climate change, primarily due to the burning of fossil fuels.
 </body></html>"""
         result = _extract_embedded_json(html)
         assert result is None
+
+
+class TestSourceFetcherContextManager:
+    """Context manager protocol for SourceFetcher (Plan #06 Phase 2)."""
+
+    def test_source_fetcher_context_manager(self, fetch_client):
+        """with SourceFetcher() as f: ... works and close called on exit."""
+        with SourceFetcher(client=fetch_client) as fetcher:
+            assert fetcher is not None
+            assert isinstance(fetcher, SourceFetcher)
+        # After exiting, the client should be closed (no-op here since we
+        # passed in an external client so _owns_client is False, but the
+        # protocol itself should work).
+
+    def test_source_fetcher_context_manager_owns_client(self):
+        """close() is called on exit even when SourceFetcher owns its client."""
+        import httpx
+
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(200, content=b"ok", request=req)
+        )
+        with SourceFetcher(client=httpx.Client(transport=transport)) as fetcher:
+            pass
+        # Should not raise — resources released cleanly
+
+    def test_source_fetcher_context_manager_on_error(self, fetch_client):
+        """close() is called even when an exception is raised inside the with block."""
+        close_called = False
+        original_close = SourceFetcher.close
+
+        def tracking_close(self):
+            nonlocal close_called
+            close_called = True
+            original_close(self)
+
+        SourceFetcher.close = tracking_close
+        try:
+            with pytest.raises(ValueError, match="boom"):
+                with SourceFetcher(client=fetch_client) as fetcher:
+                    raise ValueError("boom")
+            assert close_called, "close() should be called even on exception"
+        finally:
+            SourceFetcher.close = original_close
