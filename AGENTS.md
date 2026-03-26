@@ -1,1 +1,1 @@
-/home/brian/projects/open_web_retrieval/CLAUDE.md
+CLAUDE.md
