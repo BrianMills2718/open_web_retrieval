@@ -1,5 +1,7 @@
 """open_web_retrieval package exports."""
 
+from open_web_retrieval.async_client import AsyncOpenWebRetrievalClient
+from open_web_retrieval.async_fetch import AsyncSourceFetcher
 from open_web_retrieval.cache import CacheStats, DiskCache
 from open_web_retrieval.client import OpenWebRetrievalClient, SourceRecordBatch
 from open_web_retrieval.models import (
@@ -22,6 +24,8 @@ from open_web_retrieval.fetch_extract import SourceFetcher
 from open_web_retrieval.models import FetchMetrics
 
 __all__ = [
+    "AsyncOpenWebRetrievalClient",
+    "AsyncSourceFetcher",
     "CacheStats",
     "DiskCache",
     "CapabilityNotSupportedError",
