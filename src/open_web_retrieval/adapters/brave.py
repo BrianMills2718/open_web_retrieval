@@ -71,16 +71,43 @@ class BraveSearchAdapter(SearchAdapter):
                 "Brave request timed out",
                 context={"provider": self.provider_name, "query": query.query},
             ) from exc
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code
+            if status_code == 401:
+                raise RetrievalError(
+                    "Brave API key is invalid or expired",
+                    context={
+                        "provider": self.provider_name,
+                        "query": query.query,
+                        "status_code": 401,
+                    },
+                ) from exc
+            if status_code == 429:
+                retry_after = exc.response.headers.get("Retry-After", "unknown")
+                raise RetrievalError(
+                    f"Brave API rate limited (Retry-After: {retry_after})",
+                    context={
+                        "provider": self.provider_name,
+                        "query": query.query,
+                        "status_code": 429,
+                        "retry_after": retry_after,
+                    },
+                ) from exc
+            raise RetrievalError(
+                f"Brave request failed (HTTP {status_code})",
+                context={
+                    "provider": self.provider_name,
+                    "query": query.query,
+                    "status_code": status_code,
+                    "status_message": str(exc),
+                },
+            ) from exc
         except httpx.HTTPError as exc:
-            status_code = None
-            if exc.response is not None and hasattr(exc.response, "status_code"):
-                status_code = exc.response.status_code
             raise RetrievalError(
                 "Brave request failed",
                 context={
                     "provider": self.provider_name,
                     "query": query.query,
-                    "status_code": status_code,
                     "status_message": str(exc),
                 },
             ) from exc

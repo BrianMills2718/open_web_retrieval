@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "open-web-retrieval"
-version = "0.1.0"
+version = "0.4.0"
 description = "Shared open-web retrieval substrate for search, fetch, and extraction."
 requires-python = ">=3.10"
 dependencies = [
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-extract = ["trafilatura>=1.12"]
+extract = ["trafilatura>=1.12,<3"]
 render = ["playwright>=1.45"]
 
 [tool.setuptools.packages.find]
