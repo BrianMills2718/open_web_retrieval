@@ -19,3 +19,7 @@ render = ["playwright>=1.45"]
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["open_web_retrieval*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

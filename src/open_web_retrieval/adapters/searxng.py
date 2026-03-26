@@ -117,5 +117,5 @@ class SearxNGSearchAdapter(SearchAdapter):
 
     def __del__(self) -> None:
         """Close owned HTTP client to avoid leaked sockets."""
-        if self._owns_client:
+        if getattr(self, "_owns_client", False):
             self.client.close()

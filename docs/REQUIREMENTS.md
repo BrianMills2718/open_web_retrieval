@@ -44,7 +44,7 @@ and configurable resilience. It's shared infrastructure per the root CLAUDE.md:
 | Normalized SearchHit output | **Shipped** | Provider-agnostic Pydantic model |
 | Recency filtering | **Shipped** | `recency_days` param |
 | Domain allow/deny lists | **Shipped** | `domains_allow`, `domains_deny` |
-| Result deduplication across providers | **Not started** | Same URL from Brave + SearxNG |
+| Result deduplication across providers | **Shipped** | By URL, keep first occurrence (v0.4) |
 | Search result caching | **Shipped** | TTL-based via `cache.py` |
 
 ### Fetch — retrieve page content from a URL
@@ -55,12 +55,12 @@ and configurable resilience. It's shared infrastructure per the root CLAUDE.md:
 | Playwright JS rendering | **Shipped** | Optional, `render_mode="always"` |
 | Provenance (method, SHA256, timestamps) | **Shipped** | On FetchedResource |
 | Byte limit enforcement | **Shipped** | `max_bytes` param |
-| **HTTP error classification** | **Not started** | 403/401/404 = permanent, 429/5xx = retryable |
-| **Retry with backoff** | **Not started** | For retryable errors only |
-| **Known-blocked domain skip** | **Not started** | Configurable set, skip immediately |
-| **Respect Retry-After header** | **Not started** | On 429 responses |
-| Rate limiting (requests/second) | **Not started** | Prevent overwhelming hosts |
-| Robots.txt respect | **Not started** | Ethical default |
+| **HTTP error classification** | **Shipped** | `FetchError.retryable` field (v0.2) |
+| **Retry with backoff** | **Shipped** | 429 respects Retry-After header, one retry (v0.3) |
+| **Known-blocked domain skip** | **Shipped** | `blocked_domains` param on SourceFetcher (v0.2) |
+| **Respect Retry-After header** | **Shipped** | Integer seconds and HTTP-date (v0.3) |
+| Rate limiting (requests/second) | **Shipped** | Per-domain, default 2 req/s (v0.3) |
+| Robots.txt respect | **Not started** | Deferred to v0.5+ |
 
 ### Extract — turn HTML into clean text
 
@@ -68,8 +68,8 @@ and configurable resilience. It's shared infrastructure per the root CLAUDE.md:
 |---------|--------|-------|
 | Trafilatura extraction | **Shipped** | Primary path |
 | Fallback tag stripping | **Shipped** | When trafilatura fails |
-| Markdown output | **Not started** | Currently text-only |
-| Metadata extraction (title, author, date) | **Shipped** | Via ExtractedDocument fields |
+| Markdown output | **Shipped** | `ExtractedDocument.markdown` field (v0.4) |
+| Metadata extraction (title, author, date) | **Shipped** | Populated from trafilatura `bare_extraction()` (v0.4) |
 
 ### Cross-Cutting
 

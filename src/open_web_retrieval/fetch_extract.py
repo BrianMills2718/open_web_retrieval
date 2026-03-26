@@ -366,7 +366,7 @@ class SourceFetcher:
 
     def close(self) -> None:
         """Release HTTP client resources."""
-        if self._owns_client:
+        if getattr(self, "_owns_client", False):
             self.client.close()
 
     def __del__(self) -> None:
