@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from datetime import datetime, timezone
 
 import httpx
@@ -900,3 +902,41 @@ class TestSourceFetcherContextManager:
             assert close_called, "close() should be called even on exception"
         finally:
             SourceFetcher.close = original_close
+
+
+class TestE2EFixtures:
+    """Regression tests against saved e2e golden fixtures."""
+
+    FIXTURES_PATH = Path(__file__).parent / "fixtures" / "e2e_results.json"
+
+    def test_e2e_fixtures_exist(self):
+        """E2E test fixtures exist and have expected structure."""
+        if not self.FIXTURES_PATH.exists():
+            pytest.skip("Run scripts/e2e_test.py to generate fixtures")
+        results = json.loads(self.FIXTURES_PATH.read_text())
+        assert len(results) >= 5
+        for r in results:
+            assert "name" in r
+            assert "url" in r
+            assert "status" in r
+
+    def test_e2e_successful_results_have_content(self):
+        """Successful fetches should have non-empty text and metadata."""
+        if not self.FIXTURES_PATH.exists():
+            pytest.skip("Run scripts/e2e_test.py to generate fixtures")
+        results = json.loads(self.FIXTURES_PATH.read_text())
+        successes = [r for r in results if r["status"] == "success"]
+        assert len(successes) >= 1, "Expected at least one successful fetch"
+        for r in successes:
+            assert r.get("text_len", 0) > 0, f"{r['name']} has empty text"
+            assert r.get("extraction_method"), f"{r['name']} missing extraction_method"
+            assert "http_status" in r, f"{r['name']} missing http_status"
+
+    def test_e2e_errors_have_error_field(self):
+        """Failed fetches should have error details."""
+        if not self.FIXTURES_PATH.exists():
+            pytest.skip("Run scripts/e2e_test.py to generate fixtures")
+        results = json.loads(self.FIXTURES_PATH.read_text())
+        errors = [r for r in results if r["status"] in ("fetch_error", "error")]
+        for r in errors:
+            assert "error" in r, f"{r['name']} missing error field"

@@ -1,0 +1,85 @@
+[
+  {
+    "name": "wikipedia",
+    "url": "https://en.wikipedia.org/wiki/Web_scraping",
+    "timestamp": "2026-03-26T09:03:46.755788+00:00",
+    "status": "success",
+    "http_status": 200,
+    "fetch_method": "httpx",
+    "bytes": 165750,
+    "text_len": 26129,
+    "markdown_len": 42657,
+    "title": "Web scraping - Wikipedia",
+    "publisher": "Wikimedia Foundation, Inc.",
+    "extraction_method": "trafilatura",
+    "warnings": [],
+    "text_preview": "Web scraping\nThis article needs additional citations for verification. (April 2023) |\nWeb scraping, web harvesting, or web data extraction is data scraping used for extracting data from websites.[1] W",
+    "markdown_preview": "# Web scraping\n\nThis article needs additional citations for .\n(April 2023) |\n\n**Web scraping**, **web harvesting**, or **web data extraction** is [data scraping](https://en.wikipedia.org/wiki/Data_scr"
+  },
+  {
+    "name": "github_raw",
+    "url": "https://raw.githubusercontent.com/unclecode/crawl4ai/main/README.md",
+    "timestamp": "2026-03-26T09:03:47.287317+00:00",
+    "status": "fetch_error",
+    "error": "HTTP 429 retry failed",
+    "retryable": true
+  },
+  {
+    "name": "python_docs",
+    "url": "https://docs.python.org/3/library/asyncio.html",
+    "timestamp": "2026-03-26T09:03:58.582642+00:00",
+    "status": "success",
+    "http_status": 200,
+    "fetch_method": "httpx",
+    "bytes": 24577,
+    "text_len": 1967,
+    "markdown_len": 3297,
+    "title": "asyncio \u2014 Asynchronous I/O",
+    "publisher": "Python documentation",
+    "extraction_method": "trafilatura",
+    "warnings": [],
+    "text_preview": "asyncio\n\u2014 Asynchronous I/O\u00b6\nasyncio is a library to write concurrent code using the async/await syntax.\nasyncio is used as a foundation for multiple Python asynchronous frameworks that provide high-pe",
+    "markdown_preview": "`asyncio`\n\n\u2014 Asynchronous I/O[\u00b6](https://docs.python.org#module-asyncio)\n\nasyncio is a library to write **concurrent** code using\nthe **async/await** syntax.\n\nasyncio is used as a foundation for multi"
+  },
+  {
+    "name": "sec_edgar",
+    "url": "https://www.sec.gov/cgi-bin/browse-edgar?company=palantir&CIK=&type=&dateb=&owner=include&count=10&search_text=&action=getcompany",
+    "timestamp": "2026-03-26T09:04:00.076511+00:00",
+    "status": "success",
+    "http_status": 200,
+    "fetch_method": "httpx",
+    "bytes": 7120,
+    "text_len": 575,
+    "markdown_len": 1771,
+    "title": "EDGAR Company Search Results",
+    "publisher": "sec.gov",
+    "extraction_method": "trafilatura",
+    "warnings": [],
+    "text_preview": "- SEC Home \u00bb\n- Company Search \u00bb\n- Current Page\nCompanies with names matching \"PALANTIR\"\nClick on CIK to view company filings\nItems 1 - 6\nClick on CIK to view company filings\nItems 1 - 6\n| CIK | Compan",
+    "markdown_preview": "[SEC Home](https://www.sec.gov/index.htm)\u00bb[Company Search](https://www.sec.gov/edgar/searchedgar/companysearch.html)\u00bb- Current Page\n\nCompanies with names matching \"PALANTIR\"\n\n*Click on CIK to view com"
+  },
+  {
+    "name": "reuters_blocked",
+    "url": "https://www.reuters.com/technology/",
+    "timestamp": "2026-03-26T09:04:00.367673+00:00",
+    "status": "fetch_error",
+    "error": "blocked domain: reuters.com",
+    "retryable": false
+  },
+  {
+    "name": "httpbin_404",
+    "url": "https://httpbin.org/status/404",
+    "timestamp": "2026-03-26T09:04:00.367817+00:00",
+    "status": "fetch_error",
+    "error": "HTTP 404",
+    "retryable": false
+  },
+  {
+    "name": "nonexistent",
+    "url": "https://this-domain-definitely-does-not-exist-12345.com/",
+    "timestamp": "2026-03-26T09:04:00.696527+00:00",
+    "status": "fetch_error",
+    "error": "fetch failed",
+    "retryable": true
+  }
+]
