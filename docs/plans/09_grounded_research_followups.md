@@ -103,10 +103,13 @@ re-solved inside application repos.
 - close any gaps so consumers get observability by default when they pass those
   values once
 
-**Partially completed 2026-03-26**
+**Completed 2026-03-26**
 - closed the sync SPA auto-render gap where `extract()` re-fetched without
   forwarding `trace_id` and `task`
-- remaining work, if needed, is async parity and any uncovered edge paths
+- added async parity tests proving `trace_id` and `task` survive async fetch
+  and extract tool-call logging
+- remaining work, if any, is only uncovered edge paths rather than the main
+  public entrypoints
 
 ### Step 4: Verify against downstream-triggered questions
 

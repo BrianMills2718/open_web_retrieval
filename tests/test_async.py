@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 import httpx
 
@@ -182,3 +184,60 @@ async def test_async_fetch_content_truncation():
             FetchRequest(url="https://example.com", max_bytes=1000),
         )
         assert len(result.content_bytes) <= 1000
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_emits_trace_and_task(fake_tool_call_logger):
+    """Async fetch should preserve trace/task in shared tool-call rows."""
+
+    records, logger = fake_tool_call_logger
+
+    async def handler(request):
+        return httpx.Response(
+            200,
+            text="<html><body>Hello</body></html>",
+            headers={"content-type": "text/html"},
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    fetcher = AsyncSourceFetcher(
+        client=client,
+        rate_limit_per_second=0,
+        tool_call_logger=logger,
+    )
+    async with fetcher:
+        await fetcher.fetch(
+            FetchRequest(url="https://example.com"),
+            trace_id="trace_async_fetch",
+            task="collect",
+        )
+
+    fetch_records = [record for record in records if record.operation == "fetch"]
+    assert fetch_records
+    assert all(record.trace_id == "trace_async_fetch" for record in fetch_records)
+    assert all(record.task == "collect" for record in fetch_records)
+
+
+@pytest.mark.asyncio
+async def test_async_extract_emits_trace_and_task(fake_tool_call_logger):
+    """Async extract should preserve trace/task in shared tool-call rows."""
+
+    records, logger = fake_tool_call_logger
+    resource = FetchedResource(
+        requested_url="https://example.com/page",
+        final_url="https://example.com/page",
+        status=200,
+        content_type="text/html",
+        content_bytes=b"<html><body><p>Hello world</p></body></html>",
+        retrieved_at_utc=datetime(2026, 3, 26, tzinfo=timezone.utc),
+        fetch_method="httpx_async",
+        sha256="abc123",
+    )
+
+    async with AsyncSourceFetcher(rate_limit_per_second=0, tool_call_logger=logger) as fetcher:
+        fetcher.extract(resource, trace_id="trace_async_extract", task="collect")
+
+    extract_records = [record for record in records if record.operation == "extract"]
+    assert extract_records
+    assert all(record.trace_id == "trace_async_extract" for record in extract_records)
+    assert all(record.task == "collect" for record in extract_records)
