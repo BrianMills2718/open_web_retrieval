@@ -1,6 +1,6 @@
 # Plan #02: Robust Fetch (v0.3)
 
-**Status:** Planned
+**Status:** Complete
 **Type:** implementation
 **Priority:** High
 **Blocked By:** Plan #01 (complete)
@@ -162,13 +162,13 @@ Add to `tests/test_fetch_extract.py`:
 
 ## Acceptance Criteria
 
-- [ ] `FetchMetrics` dataclass exists with 6 counters
-- [ ] 429 responses respect `Retry-After` header (integer and HTTP-date)
-- [ ] Per-domain rate limiting with configurable rate (default 2 req/s)
-- [ ] Rate limit and Retry-After config exposed through `OpenWebRetrievalClient`
-- [ ] Metrics incremented on every fetch outcome
-- [ ] All existing tests pass (79 from v0.2)
-- [ ] 8 new tests for rate limiting, Retry-After, and metrics
+- [x] `FetchMetrics` dataclass exists with 6 counters
+- [x] 429 responses respect `Retry-After` header (integer and HTTP-date)
+- [x] Per-domain rate limiting with configurable rate (default 2 req/s)
+- [x] Rate limit and Retry-After config exposed through `OpenWebRetrievalClient`
+- [x] Metrics incremented on every fetch outcome
+- [x] All existing tests pass (79 from v0.2)
+- [x] 8 new tests for rate limiting, Retry-After, and metrics
 - [ ] **Gate: 7-question eval batch completes without 429 errors from Brave**
 
 ---

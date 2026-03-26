@@ -1,6 +1,7 @@
 """Pydantic schema models for shared open-web retrieval contracts."""
 
 from __future__ import annotations
+from dataclasses import dataclass, field
 
 from datetime import datetime
 from typing import Any
@@ -10,6 +11,19 @@ from typing import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+
+
+
+@dataclass
+class FetchMetrics:
+    """Counters for fetch operations. Consumers read these for observability."""
+
+    fetched: int = 0
+    skipped_blocked: int = 0
+    skipped_permanent: int = 0
+    retried: int = 0
+    failed: int = 0
+    total_wait_seconds: float = 0.0
 
 ProviderName = Literal["brave", "searxng"]
 RenderMode = Literal["never", "auto", "always"]

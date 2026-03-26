@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import logging
+import time
+from datetime import datetime as _datetime
+from datetime import timezone as _timezone
+from email.utils import parsedate_to_datetime
 from hashlib import sha256
 from typing import Any
 from urllib.parse import urlparse
@@ -12,6 +16,7 @@ import httpx
 from open_web_retrieval.exceptions import FetchError, OpenWebRetrievalError, RenderError
 from open_web_retrieval.models import (
     ExtractedDocument,
+    FetchMetrics,
     FetchRequest,
     FetchedResource,
 )
@@ -20,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 # HTTP status codes that indicate permanent failures — retrying won't help.
 NON_RETRYABLE_STATUS = {401, 403, 404, 410, 451}
+
+# Default wait when a 429 response lacks a Retry-After header.
+_DEFAULT_RETRY_AFTER_SECONDS = 5.0
 
 
 def _hash_bytes(payload: bytes) -> str:
@@ -50,6 +58,35 @@ def _strip_html_tags(html_text: str) -> str:
     text = "".join(output)
     text = " ".join(text.split())
     return text.strip()
+
+
+def _parse_retry_after(header_value: str) -> float:
+    """Parse a Retry-After header value into seconds to wait.
+
+    Handles two formats per RFC 7231:
+    - Integer seconds (e.g. "3")
+    - HTTP-date (e.g. "Sun, 06 Nov 1994 08:49:37 GMT")
+
+    Returns seconds to wait. Falls back to the default if parsing fails.
+    """
+    # Try integer seconds first.
+    try:
+        seconds = float(header_value)
+        return max(0.0, seconds)
+    except ValueError:
+        pass
+
+    # Try HTTP-date format.
+    try:
+        retry_at = parsedate_to_datetime(header_value)
+        now = _datetime.now(tz=_timezone.utc)
+        delta = (retry_at - now).total_seconds()
+        return max(0.0, delta)
+    except (ValueError, TypeError):
+        pass
+
+    logger.warning("unparseable Retry-After header: %s; using default", header_value)
+    return _DEFAULT_RETRY_AFTER_SECONDS
 
 
 def _extract_with_trafilatura(html_text: str) -> str | None:
@@ -107,32 +144,58 @@ class SourceFetcher:
         user_agent_profile: str = "open_web_retrieval/0.1",
         client: httpx.Client | None = None,
         blocked_domains: set[str] | None = None,
+        rate_limit_per_second: float = 2.0,
     ) -> None:
         """Construct a fetcher with injected HTTP transport.
 
         Args:
             blocked_domains: Set of domain names (without www. prefix) to reject
                 immediately with a non-retryable FetchError.
+            rate_limit_per_second: Maximum requests per second per domain.
+                Set to 0 to disable rate limiting.
         """
         self.client = client or httpx.Client(timeout=timeout_seconds)
         self._owns_client = client is None
         self.user_agent_profile = user_agent_profile
         self._blocked_domains = blocked_domains or set()
+        self._rate_limit = rate_limit_per_second
+        self._last_request: dict[str, float] = {}  # domain -> monotonic timestamp
+        self.metrics = FetchMetrics()
+
+    def _rate_limit_wait(self, domain: str) -> None:
+        """Sleep if needed to respect per-domain rate limits."""
+        if self._rate_limit <= 0:
+            return
+        now = time.monotonic()
+        if domain in self._last_request:
+            min_interval = 1.0 / self._rate_limit
+            elapsed = now - self._last_request[domain]
+            wait = max(0.0, min_interval - elapsed)
+            if wait > 0:
+                time.sleep(wait)
+                self.metrics.total_wait_seconds += wait
+        self._last_request[domain] = time.monotonic()
 
     def fetch(self, request: FetchRequest) -> FetchedResource:
         """Fetch the URL using direct HTTP with normalized provenance output.
 
         Raises FetchError with retryable=False for permanent failures (4xx auth/not-found,
         blocked domains) and retryable=True for transient failures (timeouts, 5xx, rate limits).
+
+        On 429 responses, respects the Retry-After header and retries once.
         """
         # Check blocked domains before making any network request.
         domain = urlparse(request.url).netloc.removeprefix("www.")
         if domain in self._blocked_domains:
+            self.metrics.skipped_blocked += 1
             raise FetchError(
                 f"blocked domain: {domain}",
                 retryable=False,
                 context={"url": request.url, "domain": domain},
             )
+
+        # Per-domain rate limiting.
+        self._rate_limit_wait(domain)
 
         headers = {"User-Agent": request.user_agent_profile}
         try:
@@ -142,19 +205,43 @@ class SourceFetcher:
                 response = self.client.get(request.url, headers=headers, follow_redirects=True)
                 response.raise_for_status()
         except httpx.TimeoutException as exc:
+            self.metrics.failed += 1
             raise FetchError(
                 "fetch timed out",
                 retryable=True,
                 context={"url": request.url, "method": "httpx"},
             ) from exc
         except httpx.HTTPStatusError as exc:
-            retryable = exc.response.status_code not in NON_RETRYABLE_STATUS
-            raise FetchError(
-                f"HTTP {exc.response.status_code}",
-                retryable=retryable,
-                context={"url": request.url, "status": exc.response.status_code},
-            ) from exc
+            if exc.response.status_code == 429:
+                # Respect Retry-After header and retry once.
+                retry_after_header = exc.response.headers.get("Retry-After")
+                wait = _parse_retry_after(retry_after_header) if retry_after_header else _DEFAULT_RETRY_AFTER_SECONDS
+                self.metrics.total_wait_seconds += wait
+                time.sleep(wait)
+                self.metrics.retried += 1
+                try:
+                    response = self.client.get(request.url, headers=headers, follow_redirects=True)
+                    response.raise_for_status()
+                except (httpx.HTTPError, httpx.TimeoutException) as retry_exc:
+                    self.metrics.failed += 1
+                    raise FetchError(
+                        f"HTTP 429 retry failed",
+                        retryable=True,
+                        context={"url": request.url, "status": 429, "retry_after": wait},
+                    ) from retry_exc
+            else:
+                retryable = exc.response.status_code not in NON_RETRYABLE_STATUS
+                if retryable:
+                    self.metrics.failed += 1
+                else:
+                    self.metrics.skipped_permanent += 1
+                raise FetchError(
+                    f"HTTP {exc.response.status_code}",
+                    retryable=retryable,
+                    context={"url": request.url, "status": exc.response.status_code},
+                ) from exc
         except httpx.HTTPError as exc:
+            self.metrics.failed += 1
             raise FetchError(
                 "fetch failed",
                 retryable=True,
@@ -164,6 +251,7 @@ class SourceFetcher:
         content = response.content
         if len(content) > request.max_bytes:
             content = content[: request.max_bytes]
+        self.metrics.fetched += 1
         return FetchedResource(
             requested_url=request.url,
             final_url=str(response.url),

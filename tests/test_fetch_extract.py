@@ -225,3 +225,176 @@ class TestFetchErrorRetryable:
         assert exc_info.value.retryable is False
         assert "blocked domain" in str(exc_info.value)
         assert exc_info.value.context["domain"] == "reuters.com"
+
+
+
+class TestRetryAfterHeader:
+    """Tests for 429 Retry-After header handling (Plan #02)."""
+
+    def test_retry_after_header_respected(self):
+        """429 with Retry-After header → waits, retries once, succeeds."""
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(
+                    429,
+                    headers={"Retry-After": "2"},
+                    request=request,
+                )
+            return httpx.Response(
+                200,
+                content=b"<html>ok</html>",
+                headers={"content-type": "text/html"},
+                request=request,
+            )
+
+        transport = httpx.MockTransport(handler)
+        client = httpx.Client(transport=transport)
+        fetcher = SourceFetcher(client=client, rate_limit_per_second=0)
+        req = FetchRequest(url="https://example.com/api")
+
+        import unittest.mock
+        with unittest.mock.patch("open_web_retrieval.fetch_extract.time.sleep") as mock_sleep:
+            resource = fetcher.fetch(req)
+
+        assert resource.status == 200
+        assert call_count == 2
+        mock_sleep.assert_called_once_with(2.0)
+        assert fetcher.metrics.retried == 1
+        assert fetcher.metrics.fetched == 1
+
+    def test_retry_after_integer_seconds(self):
+        """Retry-After: '3' parses to 3.0 seconds."""
+        from open_web_retrieval.fetch_extract import _parse_retry_after
+        assert _parse_retry_after("3") == 3.0
+
+    def test_retry_after_missing_uses_default(self):
+        """429 without Retry-After header uses the 5-second default."""
+        call_count = 0
+
+        def handler(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(429, request=request)
+            return httpx.Response(
+                200,
+                content=b"<html>ok</html>",
+                headers={"content-type": "text/html"},
+                request=request,
+            )
+
+        transport = httpx.MockTransport(handler)
+        client = httpx.Client(transport=transport)
+        fetcher = SourceFetcher(client=client, rate_limit_per_second=0)
+        req = FetchRequest(url="https://example.com/api")
+
+        import unittest.mock
+        with unittest.mock.patch("open_web_retrieval.fetch_extract.time.sleep") as mock_sleep:
+            resource = fetcher.fetch(req)
+
+        assert resource.status == 200
+        mock_sleep.assert_called_once_with(5.0)
+        assert fetcher.metrics.total_wait_seconds == 5.0
+
+
+class TestRateLimiting:
+    """Tests for per-domain rate limiting (Plan #02)."""
+
+    def test_rate_limit_delays_requests(self):
+        """Two rapid fetches to same domain should trigger a sleep."""
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(
+                200,
+                content=b"<html>ok</html>",
+                headers={"content-type": "text/html"},
+                request=req,
+            )
+        )
+        client = httpx.Client(transport=transport)
+        fetcher = SourceFetcher(client=client, rate_limit_per_second=2.0)
+
+        import unittest.mock
+        with unittest.mock.patch("open_web_retrieval.fetch_extract.time.sleep") as mock_sleep:
+            with unittest.mock.patch("open_web_retrieval.fetch_extract.time.monotonic") as mock_mono:
+                # First fetch: monotonic() called once (no prior entry), then once for update
+                # Second fetch: monotonic() called once to check elapsed, then once for update
+                # At rate_limit=2.0, min_interval=0.5s
+                # First: t=1.0 (check — domain not in dict, skip), t=1.0 (update)
+                # Second: t=1.0 (check — elapsed=0.0 < 0.5, must wait), t=1.5 (update)
+                mock_mono.side_effect = [1.0, 1.0, 1.0, 1.5]
+                fetcher.fetch(FetchRequest(url="https://example.com/page1"))
+                fetcher.fetch(FetchRequest(url="https://example.com/page2"))
+
+        mock_sleep.assert_called_once_with(0.5)
+        assert fetcher.metrics.total_wait_seconds == 0.5
+
+    def test_rate_limit_different_domains_no_delay(self):
+        """Fetches to different domains should not wait."""
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(
+                200,
+                content=b"<html>ok</html>",
+                headers={"content-type": "text/html"},
+                request=req,
+            )
+        )
+        client = httpx.Client(transport=transport)
+        fetcher = SourceFetcher(client=client, rate_limit_per_second=2.0)
+
+        import unittest.mock
+        with unittest.mock.patch("open_web_retrieval.fetch_extract.time.sleep") as mock_sleep:
+            with unittest.mock.patch("open_web_retrieval.fetch_extract.time.monotonic") as mock_mono:
+                # Different domains — first request to each domain skips rate limit check
+                mock_mono.side_effect = [1.0, 1.0, 1.0, 1.0]
+                fetcher.fetch(FetchRequest(url="https://example.com/a"))
+                fetcher.fetch(FetchRequest(url="https://other.com/b"))
+
+        mock_sleep.assert_not_called()
+
+    def test_rate_limit_disabled_zero(self):
+        """rate_limit_per_second=0 disables rate limiting entirely."""
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(
+                200,
+                content=b"<html>ok</html>",
+                headers={"content-type": "text/html"},
+                request=req,
+            )
+        )
+        client = httpx.Client(transport=transport)
+        fetcher = SourceFetcher(client=client, rate_limit_per_second=0)
+
+        import unittest.mock
+        with unittest.mock.patch("open_web_retrieval.fetch_extract.time.sleep") as mock_sleep:
+            fetcher.fetch(FetchRequest(url="https://example.com/a"))
+            fetcher.fetch(FetchRequest(url="https://example.com/b"))
+
+        mock_sleep.assert_not_called()
+
+
+class TestFetchMetrics:
+    """Tests for FetchMetrics tracking (Plan #02)."""
+
+    def test_metrics_incremented(self, fetch_client):
+        """Successful fetch increments metrics.fetched."""
+        fetcher = SourceFetcher(client=fetch_client, rate_limit_per_second=0)
+        req = FetchRequest(url="https://example.com/page")
+        fetcher.fetch(req)
+        assert fetcher.metrics.fetched == 1
+        assert fetcher.metrics.failed == 0
+
+    def test_metrics_blocked_domain(self):
+        """Blocked domain increments metrics.skipped_blocked."""
+        fetcher = SourceFetcher(
+            blocked_domains={"reuters.com"},
+            rate_limit_per_second=0,
+        )
+        req = FetchRequest(url="https://www.reuters.com/article/123")
+        with pytest.raises(FetchError):
+            fetcher.fetch(req)
+        assert fetcher.metrics.skipped_blocked == 1
+        assert fetcher.metrics.fetched == 0
