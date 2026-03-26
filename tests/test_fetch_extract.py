@@ -689,3 +689,84 @@ class TestAntibotEscalation:
             fetcher.fetch(req)
 
         assert fetcher.metrics.escalated == 1
+
+
+class TestSPADetection:
+    """Tests for JS-rendered SPA detection and auto-render escalation."""
+
+    # Minimal JS shell — lots of script, very little content
+    JS_SHELL_HTML = b"""<!DOCTYPE html>
+<html><head><title>App</title></head>
+<body>
+<div id="root"></div>
+<script src="/static/js/main.chunk.js"></script>
+<script src="/static/js/vendors.chunk.js"></script>
+<script src="/static/js/runtime.chunk.js"></script>
+<script>window.__APP_CONFIG__={api:"https://api.example.com"}</script>
+</body></html>"""
+
+    # Normal HTML with real content
+    NORMAL_HTML = b"""<!DOCTYPE html>
+<html><head><title>Article</title></head>
+<body>
+<article>
+<h1>Real Article Title</h1>
+<p>This is a substantial article with real content that should not trigger
+SPA detection. It has multiple paragraphs of text content that a reader
+would find useful and informative. The content is clearly not a JavaScript
+shell or single-page application bootstrap.</p>
+<p>Second paragraph with more details about the topic at hand.</p>
+</article>
+</body></html>"""
+
+    def test_looks_like_js_shell_detects_spa(self):
+        """JS-heavy HTML with minimal text is detected as SPA."""
+        from open_web_retrieval.fetch_extract import _looks_like_js_shell
+
+        assert _looks_like_js_shell(self.JS_SHELL_HTML, "App") is True
+
+    def test_looks_like_js_shell_normal_content(self):
+        """Normal HTML with real content is not detected as SPA."""
+        from open_web_retrieval.fetch_extract import _looks_like_js_shell
+
+        long_text = "This is a real article with substantial content. " * 20
+        assert _looks_like_js_shell(self.NORMAL_HTML, long_text) is False
+
+    def test_looks_like_js_shell_empty_bytes(self):
+        """Empty HTML bytes don't crash."""
+        from open_web_retrieval.fetch_extract import _looks_like_js_shell
+
+        assert _looks_like_js_shell(b"", "") is False
+
+    def test_auto_render_disabled(self):
+        """SPA detection does not fire when enable_auto_render=False."""
+        fetcher = SourceFetcher(rate_limit_per_second=0, enable_auto_render=False)
+        resource = FetchedResource(
+            requested_url="https://example.com/app",
+            final_url="https://example.com/app",
+            status=200,
+            content_type="text/html",
+            content_bytes=self.JS_SHELL_HTML,
+            retrieved_at_utc=datetime(2026, 3, 26, tzinfo=timezone.utc),
+            fetch_method="httpx",
+            sha256="abc123",
+        )
+        doc = fetcher.extract(resource)
+        # Should NOT attempt render — just return whatever extraction gives
+        assert fetcher.metrics.auto_rendered == 0
+
+    def test_auto_render_skips_already_rendered(self):
+        """SPA detection does not re-render content already fetched with Playwright."""
+        fetcher = SourceFetcher(rate_limit_per_second=0)
+        resource = FetchedResource(
+            requested_url="https://example.com/app",
+            final_url="https://example.com/app",
+            status=200,
+            content_type="text/html",
+            content_bytes=self.JS_SHELL_HTML,
+            retrieved_at_utc=datetime(2026, 3, 26, tzinfo=timezone.utc),
+            fetch_method="render_playwright",  # Already rendered
+            sha256="abc123",
+        )
+        doc = fetcher.extract(resource)
+        assert fetcher.metrics.auto_rendered == 0

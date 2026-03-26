@@ -155,6 +155,29 @@ def _extract_with_trafilatura(html_text: str, url: str | None = None) -> tuple[s
         return ("", "", {})
 
 
+# Minimum text length and script-tag ratio that suggests a JS-rendered SPA
+_SPA_MIN_TEXT_LEN = 500
+_SPA_SCRIPT_RATIO = 0.3  # >30% of HTML is <script> tags
+
+
+def _looks_like_js_shell(html_bytes: bytes, extracted_text: str) -> bool:
+    """Detect JS-rendered SPAs that return an empty HTML shell.
+
+    Returns True if the extracted text is suspiciously short AND the raw HTML
+    contains a high ratio of <script> tags — indicating the real content is
+    rendered client-side.
+    """
+    if len(extracted_text) >= _SPA_MIN_TEXT_LEN:
+        return False
+    html_lower = html_bytes.lower()
+    script_bytes = sum(
+        len(seg) for seg in html_lower.split(b"<script")[1:]
+    )
+    if len(html_bytes) == 0:
+        return False
+    return (script_bytes / len(html_bytes)) > _SPA_SCRIPT_RATIO
+
+
 def _extract_text(
     resource: FetchedResource, *, method: str,
 ) -> tuple[str, str, dict, str, list[str]]:
@@ -227,6 +250,7 @@ class SourceFetcher:
         rate_limit_per_second: float = 2.0,
         tool_call_logger: ToolCallLogger | None = None,
         enable_antibot: bool = False,
+        enable_auto_render: bool = True,
     ) -> None:
         """Construct a fetcher with injected HTTP transport.
 
@@ -247,6 +271,7 @@ class SourceFetcher:
                     "Install with: pip install open_web_retrieval[antibot]"
                 )
         self._enable_antibot = enable_antibot
+        self._enable_auto_render = enable_auto_render
         self.client = client or httpx.Client(timeout=timeout_seconds)
         self._owns_client = client is None
         self.user_agent_profile = user_agent_profile
@@ -684,6 +709,64 @@ class SourceFetcher:
             extraction_method=method_used,
             warnings=warnings,
         )
+        # Check for JS-rendered SPA: short text + script-heavy HTML → try Playwright
+        if (
+            self._enable_auto_render
+            and resource.fetch_method != "render_playwright"
+            and resource.fetch_method != "crawl4ai"
+            and _looks_like_js_shell(resource.content_bytes, document.text)
+        ):
+            try:
+                logger.info(
+                    "SPA_DETECTED url=%s text_len=%d — re-fetching with Playwright",
+                    resource.requested_url,
+                    len(document.text),
+                )
+                rendered_request = FetchRequest(
+                    url=resource.requested_url,
+                    render_mode="always",
+                    user_agent_profile=self.user_agent_profile,
+                )
+                rendered_resource = self.fetch(rendered_request)
+                rendered_resource = FetchedResource(
+                    requested_url=rendered_resource.requested_url,
+                    final_url=rendered_resource.final_url,
+                    status=rendered_resource.status,
+                    content_type=rendered_resource.content_type,
+                    content_bytes=rendered_resource.content_bytes,
+                    retrieved_at_utc=rendered_resource.retrieved_at_utc,
+                    fetch_method="render_playwright",
+                    sha256=rendered_resource.sha256,
+                )
+                text, markdown, metadata, method_used, warnings = _extract_text(
+                    rendered_resource, method=method
+                )
+                document = ExtractedDocument(
+                    source_url=resource.requested_url,
+                    final_url=rendered_resource.final_url,
+                    title=metadata.get("title"),
+                    publisher_guess=metadata.get("sitename") or metadata.get("author"),
+                    published_at_guess=_parse_date_string(metadata.get("date")),
+                    text=text,
+                    markdown=markdown,
+                    document_type="html",
+                    extraction_method=f"{method_used}+render",
+                    warnings=warnings + ["auto-rendered: original was JS shell"],
+                )
+                self.metrics.auto_rendered += 1
+                logger.info(
+                    "SPA_RENDERED url=%s text_len=%d markdown_len=%d",
+                    resource.requested_url,
+                    len(document.text),
+                    len(document.markdown),
+                )
+            except Exception as exc:
+                logger.warning(
+                    "SPA_RENDER_FAILED url=%s error=%s — keeping original extraction",
+                    resource.requested_url,
+                    exc,
+                )
+
         logger.debug(
             "EXTRACT url=%s method=%s title=%s markdown_len=%d text_len=%d",
             resource.requested_url,

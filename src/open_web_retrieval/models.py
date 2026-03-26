@@ -24,7 +24,8 @@ class FetchMetrics:
     retried: int = 0
     failed: int = 0
     total_wait_seconds: float = 0.0
-    escalated: int = 0  # anti-bot escalation attempts
+    escalated: int = 0
+    auto_rendered: int = 0  # SPA detection → Playwright re-fetch  # anti-bot escalation attempts
 
 ProviderName = Literal["brave", "searxng"]
 RenderMode = Literal["never", "auto", "always"]

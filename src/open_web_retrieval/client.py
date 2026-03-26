@@ -54,6 +54,7 @@ class OpenWebRetrievalClient:
         rate_limit_per_second: float = 2.0,
         tool_call_logger: ToolCallLogger | None = None,
         enable_antibot: bool = False,
+        enable_auto_render: bool = True,
     ) -> None:
         """Configure provider adapters, fetcher, and optional disk cache.
 
@@ -92,6 +93,7 @@ class OpenWebRetrievalClient:
             rate_limit_per_second=rate_limit_per_second,
             tool_call_logger=tool_call_logger,
             enable_antibot=enable_antibot,
+            enable_auto_render=enable_auto_render,
         )
         self.default_providers = tuple(self.adapters.adapters.keys())
         self.tool_call_logger = tool_call_logger
