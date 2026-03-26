@@ -12,15 +12,21 @@ See `REQUIREMENTS.md` for capabilities inventory and success criteria.
 **v0.1 (shipped):** Basic pipeline works. Search (Brave/SearxNG) → Fetch (httpx) →
 Extract (trafilatura) → Provenance. Pydantic contracts, caching, optional Playwright.
 
-**v0.2 (shipped, 2026-03-25):** Resilient fetch. `FetchError.retryable` classifies
-HTTP errors. Blocked domains skip immediately. Plan #01 complete, 79 tests.
+**v0.2 (shipped):** Resilient fetch. `FetchError.retryable` classifies HTTP errors
+as permanent (401/403/404/410/451) or transient (429/5xx/timeout). Blocked domains
+skip immediately. Plan #01 complete, 79 tests.
 
-**v0.3 (shipped, 2026-03-25):** Robust fetch. Retry-After header respected on 429.
-Per-domain rate limiting (2 req/s default). FetchMetrics counters. Plan #02 complete, 87 tests.
+**v0.3 (shipped):** Robust fetch. Retry-After header respected on 429. Per-domain
+rate limiting (2 req/s default). FetchMetrics counters. Plan #02 complete, 87 tests.
 
-**v0.4 (shipped, 2026-03-25):** Enhanced extraction. Markdown output from trafilatura.
-Metadata populated (title, author, date, sitename). Search result dedup by URL.
+**v0.4 (shipped):** Enhanced extraction. Markdown output from trafilatura. Metadata
+populated (title, author, date, sitename). Search result dedup by URL.
 Plan #03 complete, 98 tests.
+
+**v0.4.1 (shipped):** Hardening and v1.0 prep. Brave API error messages distinguish
+401 (invalid key) from 429 (rate limited with Retry-After). py.typed marker.
+trafilatura version pinned. Version bumped to 0.4.0. README rewrite with code
+examples. CI via GitHub Actions (py3.10, py3.12). Plan #04 complete.
 
 **What's next:** v0.5 (anti-bot via Crawl4AI) is deferred until proven necessary.
 v1.0 (shareable library) is gated on ROADMAP Phase 4. The library is feature-complete
@@ -29,56 +35,6 @@ for current consumer needs.
 ---
 
 ## The Path
-
-### v0.2: Resilient Fetch (unblocks research_v3 eval)
-
-**Goal:** Consumers can distinguish "try again" from "give up." Cooperative sites
-work exactly as before. Paywalled sites fail fast.
-
-| Step | What | How |
-|------|------|-----|
-| 0.2.1 | Add `retryable` field to `FetchError` | `FetchError(retryable=True\|False)` |
-| 0.2.2 | Classify HTTP status in `SourceFetcher.fetch()` | 401/403/404/410/451 = permanent. 429/500/502/503/504 = retryable. |
-| 0.2.3 | Add `blocked_domains` param to `SourceFetcher` | Configurable set, skip immediately with `retryable=False` |
-| 0.2.4 | Wire `retryhttp` or `httpx-retries` for transport retry | Replaces consumer-side retry loops. Respects classification. |
-
-**Gate:** research_v3 loop completes F1 in <10 minutes. `FetchError.retryable` is
-checked by at least one consumer.
-
-**Failure mode:** If `retryhttp` doesn't integrate cleanly with our httpx.Client
-lifecycle, fall back to manual status code check in `fetch()` (~20 lines).
-
-**Not in v0.2:** Retry-After header, rate limiting, markdown output, Crawl4AI.
-
-### v0.3: Robust Fetch (production quality)
-
-**Goal:** Polite, observable, and self-regulating. Can run unsupervised for hours.
-
-| Step | What | Why |
-|------|------|-----|
-| 0.3.1 | Respect `Retry-After` header on 429 | Brave API and target sites send this. Ignoring it = getting banned. |
-| 0.3.2 | Per-host rate limiting | Prevent overwhelming any single host. Configurable default (e.g., 2 req/s). |
-| 0.3.3 | Fetch metrics (success/fail/skip counts) | Observable. Consumers can log or alert. |
-| 0.3.4 | Robots.txt respect (optional, default on) | Ethical default. Configurable opt-out for known-safe targets. |
-
-**Gate:** Library can run a 7-question eval batch (~50 fetches) without hitting
-rate limits or getting IP-banned.
-
-**Failure mode:** If per-host rate limiting adds measurable latency to cooperative
-sites, make it configurable per-domain (fast default, slow for known-strict hosts).
-
-### v0.4: Enhanced Extraction
-
-**Goal:** Output is LLM-ready without consumer post-processing.
-
-| Step | What | Why |
-|------|------|-----|
-| 0.4.1 | Markdown output option | Consumers (research_v3, future agents) want markdown, not raw text. Crawl4AI and Jina Reader both output markdown — this is table stakes. |
-| 0.4.2 | Search result deduplication | When using Brave + SearxNG, same URL appears twice. Dedup by URL, keep highest-ranked. |
-| 0.4.3 | Structured metadata extraction | Author, publish date, canonical URL — trafilatura already extracts these but we don't surface them well. |
-
-**Gate:** `ExtractedDocument` has a `markdown` field. Consumers don't need to
-post-process raw text.
 
 ### v0.5: Anti-Bot Escalation (only if needed)
 
@@ -115,6 +71,8 @@ serve content regardless of browser tricks.
 **Gate:** Someone unfamiliar with the codebase can install and use the library
 from the README alone.
 
+**Note:** Steps 1.0.2 and 1.0.3 are partially addressed by Plan #04 (v0.4.1).
+
 ---
 
 ## SOTA Landscape (researched 2026-03-24)
@@ -140,3 +98,4 @@ Full research: `docs/plans/01_fetch_resilience_and_crawl4ai.md`
 | 2026-03-24 | Defer Crawl4AI to v0.5 | Most "blocked" sites are paywalls. Anti-bot is an arms race. Solve the 90% case first. |
 | 2026-03-24 | Keep httpx+trafilatura as core stack | Community consensus: still the recommended "fast path." Browser-based tools for escalation only. |
 | 2026-03-25 | Requirements before implementation | Wrote REQUIREMENTS.md to define consumers, boundaries, success criteria before building features. |
+| 2026-03-25 | Bump to v0.4.0, not v1.0 | Version reflects feature state. v1.0 is a ROADMAP Phase 4 milestone requiring broader shareable-ecosystem readiness. |

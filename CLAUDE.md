@@ -1,14 +1,38 @@
 # open_web_retrieval - Canonical Repo Instructions
 
+**Version:** 0.4.0
+**Last verified:** 2026-03-25
+
 This repo is the shared open-web retrieval boundary.
 
 ## Purpose
 
 - Search: Brave and SearxNG adapters in a normalized contract.
-- Fetch: `httpx` direct fetch with constrained bytes.
+- Fetch: `httpx` direct fetch with error classification, blocked domains, per-domain rate limiting, Retry-After.
 - Render: optional Playwright-based fallback when direct fetch is insufficient.
-- Extract: normalized extraction metadata with primary Trafilatura path.
+- Extract: text and markdown output via Trafilatura, with title/author/date/sitename metadata.
 - Provenance: every operation records provider, URL lineage, and fetch/extract method.
+
+## Commands
+
+```bash
+# Run all tests
+pytest tests/ -q
+
+# Run tests with verbose output
+pytest tests/ -v
+
+# Install with extraction support
+pip install -e ".[extract]"
+
+# Install with rendering support
+pip install -e ".[render]"
+```
+
+## CI
+
+GitHub Actions runs on push to main and PRs. Matrix: Python 3.10, 3.12.
+Workflow: `.github/workflows/test.yml`
 
 ## Canonical Rules
 
@@ -16,7 +40,7 @@ This repo is the shared open-web retrieval boundary.
   primitives.
 - Domain repos should consume these primitives before hand-rolling web search,
   fetch, render, or extraction logic.
-- Keep the API intentionally small in v0; avoid speculative abstractions.
+- Keep the API intentionally small; avoid speculative abstractions.
 - Fail loudly by default. If partial-failure mode is used, it must be explicit.
 - Update schema/capability changes and plan references when contracts change.
 
@@ -28,10 +52,11 @@ This repo is the shared open-web retrieval boundary.
 
 ## Work-in-scope
 
-- v0 provider support: Brave, SearxNG, direct HTTP fetch, optional Playwright
-  render fallback, Trafilatura extraction when available.
+- v0.4 provider support: Brave, SearxNG, direct HTTP fetch with error classification
+  and rate limiting, optional Playwright render fallback, Trafilatura extraction
+  with markdown output.
 - Optional future slices should be added as explicit migrations in
-  `project-meta/docs/plans` and reflected in governance linkage.
+  `docs/plans/` and reflected in ROADMAP.md.
 
 ## Maintenance
 
