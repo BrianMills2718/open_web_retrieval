@@ -49,6 +49,7 @@ class OpenWebRetrievalClient:
         blocked_domains: set[str] | None = None,
         rate_limit_per_second: float = 2.0,
         tool_call_logger: ToolCallLogger | None = None,
+        enable_antibot: bool = False,
     ) -> None:
         """Configure provider adapters, fetcher, and optional disk cache.
 
@@ -60,6 +61,8 @@ class OpenWebRetrievalClient:
                 fetching. Passed through to SourceFetcher.
             rate_limit_per_second: Maximum requests per second per domain.
                 Set to 0 to disable. Passed through to SourceFetcher.
+            enable_antibot: If True, escalate 403 responses to browser-based
+                fetch via Crawl4AI. Requires crawl4ai to be installed.
         """
         configured_adapters: list[SearchAdapter] = []
         if adapters is not None:
@@ -84,6 +87,7 @@ class OpenWebRetrievalClient:
             blocked_domains=blocked_domains,
             rate_limit_per_second=rate_limit_per_second,
             tool_call_logger=tool_call_logger,
+            enable_antibot=enable_antibot,
         )
         self.default_providers = tuple(self.adapters.adapters.keys())
         self.tool_call_logger = tool_call_logger

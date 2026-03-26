@@ -193,6 +193,27 @@ def _extract_text(
     return text or "", markdown, metadata, used, warnings
 
 
+def _run_async(coro):
+    """Run an async coroutine from sync code, handling already-running event loops.
+
+    Uses asyncio.run() when no event loop is running. Falls back to running
+    in a new thread when called from within an existing event loop (e.g. Jupyter).
+    """
+    import asyncio
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No event loop running — safe to use asyncio.run()
+        return asyncio.run(coro)
+
+    # Event loop already running — run in a new thread with its own loop
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(asyncio.run, coro)
+        return future.result()
+
+
 class SourceFetcher:
     """Fetch web resources and preserve fetch metadata."""
 
@@ -205,6 +226,7 @@ class SourceFetcher:
         blocked_domains: set[str] | None = None,
         rate_limit_per_second: float = 2.0,
         tool_call_logger: ToolCallLogger | None = None,
+        enable_antibot: bool = False,
     ) -> None:
         """Construct a fetcher with injected HTTP transport.
 
@@ -213,7 +235,18 @@ class SourceFetcher:
                 immediately with a non-retryable FetchError.
             rate_limit_per_second: Maximum requests per second per domain.
                 Set to 0 to disable rate limiting.
+            enable_antibot: If True, escalate 403 responses to browser-based
+                fetch via Crawl4AI. Requires crawl4ai to be installed.
         """
+        if enable_antibot:
+            try:
+                import crawl4ai  # noqa: F401
+            except ImportError:
+                raise ImportError(
+                    "crawl4ai is required for anti-bot escalation. "
+                    "Install with: pip install open_web_retrieval[antibot]"
+                )
+        self._enable_antibot = enable_antibot
         self.client = client or httpx.Client(timeout=timeout_seconds)
         self._owns_client = client is None
         self.user_agent_profile = user_agent_profile
@@ -237,6 +270,42 @@ class SourceFetcher:
                 self.metrics.total_wait_seconds += wait
         self._last_request[domain] = time.monotonic()
 
+    def _crawl4ai_fetch(self, url: str) -> FetchedResource:
+        """Attempt browser-based fetch via Crawl4AI for anti-bot bypass.
+
+        Uses AsyncWebCrawler with headless Chromium to bypass anti-bot
+        protections that block plain HTTP requests. Raises FetchError
+        on failure.
+        """
+        from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
+
+        async def _fetch():
+            browser_config = BrowserConfig(headless=True)
+            crawler_config = CrawlerRunConfig(
+                verbose=False,
+            )
+            async with AsyncWebCrawler(config=browser_config) as crawler:
+                result = await crawler.arun(url=url, config=crawler_config)
+                if not result.success:
+                    raise FetchError(
+                        f"crawl4ai failed: {result.error_message}",
+                        retryable=False,
+                        context={"url": url, "method": "crawl4ai"},
+                    )
+                html_bytes = result.html.encode("utf-8") if result.html else b""
+                return FetchedResource(
+                    requested_url=url,
+                    final_url=result.url or url,
+                    status=result.status_code or 200,
+                    content_type="text/html",
+                    content_bytes=html_bytes,
+                    retrieved_at_utc=_utc_now(),
+                    fetch_method="crawl4ai",
+                    sha256=_hash_bytes(html_bytes),
+                )
+
+        return _run_async(_fetch())
+
     def fetch(
         self,
         request: FetchRequest,
@@ -250,6 +319,7 @@ class SourceFetcher:
         blocked domains) and retryable=True for transient failures (timeouts, 5xx, rate limits).
 
         On 429 responses, respects the Retry-After header and retries once.
+        On 403 responses with enable_antibot=True, escalates to browser-based fetch.
         """
         call_id = make_tool_call_id()
         started_at = utc_now_iso()
@@ -430,6 +500,16 @@ class SourceFetcher:
                         context={"url": request.url, "status": 429, "retry_after": wait},
                     ) from retry_exc
             else:
+                # Escalate 403 to browser-based fetch when antibot is enabled
+                if exc.response.status_code == 403 and self._enable_antibot:
+                    try:
+                        logger.info("Escalating to crawl4ai for anti-bot: %s", request.url)
+                        self.metrics.escalated += 1
+                        return self._crawl4ai_fetch(request.url)
+                    except Exception as antibot_exc:
+                        logger.warning("crawl4ai escalation failed: %s", antibot_exc)
+                        # Fall through to raise original FetchError
+
                 retryable = exc.response.status_code not in NON_RETRYABLE_STATUS
                 if retryable:
                     self.metrics.failed += 1

@@ -545,3 +545,147 @@ class TestDateParsing:
     def test_invalid_date(self):
         from open_web_retrieval.fetch_extract import _parse_date_string
         assert _parse_date_string("not-a-date") is None
+
+
+class TestAntibotEscalation:
+    """Tests for Crawl4AI anti-bot escalation (Plan #05)."""
+
+    def _make_403_fetcher(self, *, enable_antibot: bool = True):
+        """Create a SourceFetcher with a 403-returning transport and mocked crawl4ai import."""
+        import sys
+        import types
+        import unittest.mock
+
+        # Mock crawl4ai module so enable_antibot=True doesn't raise ImportError
+        mock_crawl4ai = types.ModuleType("crawl4ai")
+        mock_crawl4ai.AsyncWebCrawler = unittest.mock.MagicMock()
+        mock_crawl4ai.BrowserConfig = unittest.mock.MagicMock()
+        mock_crawl4ai.CrawlerRunConfig = unittest.mock.MagicMock()
+
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(403, request=req)
+        )
+        client = httpx.Client(transport=transport)
+
+        with unittest.mock.patch.dict(sys.modules, {"crawl4ai": mock_crawl4ai}):
+            fetcher = SourceFetcher(
+                client=client,
+                rate_limit_per_second=0,
+                enable_antibot=enable_antibot,
+            )
+        return fetcher
+
+    def test_403_escalates_when_antibot_enabled(self):
+        """403 + enable_antibot=True calls _crawl4ai_fetch."""
+        import unittest.mock
+
+        fetcher = self._make_403_fetcher(enable_antibot=True)
+
+        mock_resource = FetchedResource(
+            requested_url="https://protected.example.com/page",
+            final_url="https://protected.example.com/page",
+            status=200,
+            content_type="text/html",
+            content_bytes=b"<html>browser content</html>",
+            retrieved_at_utc=datetime(2026, 3, 25, tzinfo=timezone.utc),
+            fetch_method="crawl4ai",
+            sha256="abc123",
+        )
+
+        with unittest.mock.patch.object(fetcher, "_crawl4ai_fetch", return_value=mock_resource) as mock_fetch:
+            req = FetchRequest(url="https://protected.example.com/page")
+            result = fetcher.fetch(req)
+
+        mock_fetch.assert_called_once_with("https://protected.example.com/page")
+        assert result.fetch_method == "crawl4ai"
+
+    def test_403_no_escalation_when_antibot_disabled(self):
+        """403 + enable_antibot=False raises FetchError immediately."""
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(403, request=req)
+        )
+        client = httpx.Client(transport=transport)
+        fetcher = SourceFetcher(
+            client=client,
+            rate_limit_per_second=0,
+            enable_antibot=False,
+        )
+        req = FetchRequest(url="https://protected.example.com/page")
+        with pytest.raises(FetchError) as exc_info:
+            fetcher.fetch(req)
+        assert exc_info.value.retryable is False
+        assert "403" in str(exc_info.value)
+
+    def test_escalation_failure_falls_through(self):
+        """crawl4ai fails -> original FetchError raised with 403."""
+        import unittest.mock
+
+        fetcher = self._make_403_fetcher(enable_antibot=True)
+
+        with unittest.mock.patch.object(
+            fetcher, "_crawl4ai_fetch",
+            side_effect=FetchError("crawl4ai failed", retryable=False),
+        ):
+            req = FetchRequest(url="https://protected.example.com/page")
+            with pytest.raises(FetchError) as exc_info:
+                fetcher.fetch(req)
+            # Should be the original 403 error, not the crawl4ai error
+            assert "403" in str(exc_info.value)
+            assert exc_info.value.retryable is False
+
+    def test_escalation_success_returns_resource(self):
+        """crawl4ai succeeds -> FetchedResource with method='crawl4ai'."""
+        import unittest.mock
+
+        fetcher = self._make_403_fetcher(enable_antibot=True)
+
+        mock_resource = FetchedResource(
+            requested_url="https://protected.example.com/page",
+            final_url="https://protected.example.com/page",
+            status=200,
+            content_type="text/html",
+            content_bytes=b"<html>bypassed content</html>",
+            retrieved_at_utc=datetime(2026, 3, 25, tzinfo=timezone.utc),
+            fetch_method="crawl4ai",
+            sha256="def456",
+        )
+
+        with unittest.mock.patch.object(fetcher, "_crawl4ai_fetch", return_value=mock_resource):
+            req = FetchRequest(url="https://protected.example.com/page")
+            result = fetcher.fetch(req)
+
+        assert result.fetch_method == "crawl4ai"
+        assert result.content_bytes == b"<html>bypassed content</html>"
+
+    def test_enable_antibot_requires_crawl4ai(self):
+        """enable_antibot=True without crawl4ai installed raises ImportError."""
+        import sys
+        import unittest.mock
+
+        # Ensure crawl4ai is NOT importable
+        with unittest.mock.patch.dict(sys.modules, {"crawl4ai": None}):
+            with pytest.raises(ImportError, match="crawl4ai is required"):
+                SourceFetcher(enable_antibot=True)
+
+    def test_metrics_escalated_incremented(self):
+        """Successful escalation increments metrics.escalated."""
+        import unittest.mock
+
+        fetcher = self._make_403_fetcher(enable_antibot=True)
+
+        mock_resource = FetchedResource(
+            requested_url="https://protected.example.com/page",
+            final_url="https://protected.example.com/page",
+            status=200,
+            content_type="text/html",
+            content_bytes=b"<html>content</html>",
+            retrieved_at_utc=datetime(2026, 3, 25, tzinfo=timezone.utc),
+            fetch_method="crawl4ai",
+            sha256="ghi789",
+        )
+
+        with unittest.mock.patch.object(fetcher, "_crawl4ai_fetch", return_value=mock_resource):
+            req = FetchRequest(url="https://protected.example.com/page")
+            fetcher.fetch(req)
+
+        assert fetcher.metrics.escalated == 1
