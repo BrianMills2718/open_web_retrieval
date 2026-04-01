@@ -1,6 +1,6 @@
 """open_web_retrieval package exports."""
 
-__version__ = "0.8.0"
+from open_web_retrieval._version import __version__
 
 from open_web_retrieval.async_client import AsyncOpenWebRetrievalClient
 from open_web_retrieval.async_fetch import AsyncSourceFetcher

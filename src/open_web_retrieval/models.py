@@ -11,8 +11,10 @@ from typing import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-# Module-level constant for user-agent default. Kept in sync with __version__ in __init__.py.
-_DEFAULT_USER_AGENT = "open_web_retrieval/0.8.0"
+from open_web_retrieval._version import __version__
+
+# Derive user-agent default from the single-source version constant.
+_DEFAULT_USER_AGENT = f"open_web_retrieval/{__version__}"
 
 
 
@@ -28,7 +30,7 @@ class FetchMetrics:
     failed: int = 0
     total_wait_seconds: float = 0.0
     escalated: int = 0
-    auto_rendered: int = 0  # SPA detection → Playwright re-fetch
+    auto_rendered: int = 0  # SPA detection escalation (Playwright re-fetch or embedded JSON)
 
 ProviderName = Literal["brave", "searxng", "tavily", "exa"]
 RenderMode = Literal["never", "auto", "always"]
