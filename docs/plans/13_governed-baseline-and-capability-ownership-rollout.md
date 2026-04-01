@@ -1,6 +1,6 @@
 # Plan #13: Governed Baseline And Capability Ownership Rollout
 
-**Status:** 🚧 In Progress
+**Status:** ✅ Complete
 **Type:** implementation
 **Priority:** High
 **Blocked By:** None
@@ -83,10 +83,10 @@ on a sanctioned-worktree rollout in the same wave.
 
 ## Acceptance Criteria
 
-- [ ] `open_web_retrieval` no longer relies on a bootstrap-minimal-only governed surface
-- [ ] repo-local capability ownership is declared truthfully
-- [ ] local docs make the ownership source discoverable
-- [ ] the wave stays baseline-plus-ownership and does not quietly become sanctioned-worktree rollout
+- [x] `open_web_retrieval` no longer relies on a bootstrap-minimal-only governed surface
+- [x] repo-local capability ownership is declared truthfully
+- [x] local docs make the ownership source discoverable
+- [x] the wave stays baseline-plus-ownership and does not quietly become sanctioned-worktree rollout
 
 ---
 
@@ -94,3 +94,6 @@ on a sanctioned-worktree rollout in the same wave.
 
 - matching shared registry and canonical-source updates happen under
   `project-meta` Plan 50
+- bounded installer repair was accepted for governance helpers, but
+  installer-added worktree entrypoints were reverted to keep worktrees
+  intentionally disabled in this wave

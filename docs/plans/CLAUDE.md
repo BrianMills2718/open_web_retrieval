@@ -23,7 +23,7 @@ This file is the canonical plan-index contract for `docs/plans/`.
 | 10 | [Tavily Provider Parity](10_tavily_provider_parity.md) | High | ✅ Complete | research complete |
 | 11 | [Exa Provider Parity](11_exa_provider_parity.md) | High | ✅ Complete | research complete |
 | 12 | [Multi-Provider Search & Fetch Adapters](12_multi_provider_adapters.md) | Medium | 📋 Planned | - |
-| 13 | [Governed Baseline And Capability Ownership Rollout](13_governed-baseline-and-capability-ownership-rollout.md) | High | 🚧 In Progress | - |
+| 13 | [Governed Baseline And Capability Ownership Rollout](13_governed-baseline-and-capability-ownership-rollout.md) | High | ✅ Complete | - |
 
 ## Status Key
 
