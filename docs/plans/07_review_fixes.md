@@ -14,6 +14,8 @@ fixes everything except the sync/async duplication (separate plan).
 
 ---
 
+## Plan
+
 ## Steps
 
 ### A. Documentation Fixes

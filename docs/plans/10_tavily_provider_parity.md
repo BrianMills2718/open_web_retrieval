@@ -131,7 +131,7 @@ Fail:
 
 ## Notes
 
-- This is not full Plan #05 closure.
+- This is not full Plan #12 closure.
 - Exa and Jina remain deferred until Tavily is stable.
 - Grounded-research integration is a follow-on application wave, not part of this adapter wave.
 
