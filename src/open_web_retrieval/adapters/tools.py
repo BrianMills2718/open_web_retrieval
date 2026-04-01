@@ -43,6 +43,7 @@ from open_web_retrieval.models import SearchHit, SearchQuery
     domain="web",
     description="Search the web using Brave Search API",
     cost_tier="cheap",
+    result_type=SearchHit,
 )
 async def brave_search(
     query: str,
@@ -73,6 +74,7 @@ async def brave_search(
     domain="web",
     description="Search the web using a local SearxNG instance",
     cost_tier="free",
+    result_type=SearchHit,
 )
 async def searxng_search(
     query: str,
@@ -103,6 +105,7 @@ async def searxng_search(
     domain="web",
     description="Search the web using Tavily's hosted search API",
     cost_tier="cheap",
+    result_type=SearchHit,
 )
 async def tavily_search(
     query: str,
@@ -135,6 +138,7 @@ async def tavily_search(
     domain="web",
     description="Search the web using Exa's deep search API",
     cost_tier="moderate",
+    result_type=SearchHit,
 )
 async def exa_search(
     query: str,
