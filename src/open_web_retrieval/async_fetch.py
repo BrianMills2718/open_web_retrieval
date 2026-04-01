@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from open_web_retrieval import __version__
+from open_web_retrieval._version import __version__
 from open_web_retrieval.exceptions import FetchError
 from open_web_retrieval.fetch_extract import (
     KNOWN_BLOCKED_DOMAINS,

@@ -21,7 +21,7 @@ from open_web_retrieval.models import (
     FetchRequest,
     FetchedResource,
 )
-from open_web_retrieval import __version__
+from open_web_retrieval._version import __version__
 
 from open_web_retrieval.observability import (
     ToolCallLogger,
