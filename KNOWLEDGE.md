@@ -34,3 +34,7 @@ worktree truthfully instead of `ACTIVE (no claim)`.
 ### 2026-04-02 — codex — best-practice
 
 Repo-local coordination runtime state lives under `.claude/` and should be ignored at the repo boundary. Otherwise a successful claim/reservation rollout leaves the canonical repo artificially dirty with local-only session and claim files.
+
+### 2026-04-02 — codex — best-practice
+
+Do not ignore the entire `.claude/` directory when adopting coordination. Only ignore the runtime coordination artifacts (`.claude/active-work.yaml`, `.claude/hook_log.jsonl`, `.claude/sessions/`) so tracked hook and settings files remain visible to normal git add/status flows.

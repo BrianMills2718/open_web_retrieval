@@ -6,4 +6,6 @@ dist/
 build/
 .pytest_cache/
 *.env
-.claude/
+.claude/active-work.yaml
+.claude/hook_log.jsonl
+.claude/sessions/
