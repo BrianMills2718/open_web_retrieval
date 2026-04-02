@@ -31,6 +31,15 @@ from collections.abc import Sequence
 
 from llm_client.tools import tool
 
+try:
+    from data_contracts import boundary
+except ImportError:
+    def boundary(**kwargs):
+        """No-op boundary decorator until data_contracts package exists."""
+        def decorator(fn):
+            return fn
+        return decorator
+
 from open_web_retrieval.adapters.brave import BraveSearchAdapter
 from open_web_retrieval.adapters.exa import ExaSearchAdapter
 from open_web_retrieval.adapters.searxng import SearxNGSearchAdapter
@@ -44,6 +53,11 @@ from open_web_retrieval.models import SearchHit, SearchQuery
     description="Search the web using Brave Search API",
     cost_tier="cheap",
     result_type=SearchHit,
+)
+@boundary(
+    name="open_web_retrieval.brave_search",
+    version="0.1.0",
+    producer="open_web_retrieval",
 )
 async def brave_search(
     query: str,
@@ -76,6 +90,11 @@ async def brave_search(
     cost_tier="free",
     result_type=SearchHit,
 )
+@boundary(
+    name="open_web_retrieval.searxng_search",
+    version="0.1.0",
+    producer="open_web_retrieval",
+)
 async def searxng_search(
     query: str,
     *,
@@ -106,6 +125,11 @@ async def searxng_search(
     description="Search the web using Tavily's hosted search API",
     cost_tier="cheap",
     result_type=SearchHit,
+)
+@boundary(
+    name="open_web_retrieval.tavily_search",
+    version="0.1.0",
+    producer="open_web_retrieval",
 )
 async def tavily_search(
     query: str,
@@ -139,6 +163,11 @@ async def tavily_search(
     description="Search the web using Exa's deep search API",
     cost_tier="moderate",
     result_type=SearchHit,
+)
+@boundary(
+    name="open_web_retrieval.exa_search",
+    version="0.1.0",
+    producer="open_web_retrieval",
 )
 async def exa_search(
     query: str,
