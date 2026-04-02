@@ -17,7 +17,7 @@ This file is the canonical plan-index contract for `docs/plans/`.
 | 4 | [Hardening and v1.0 Prep](04_hardening_and_v1_prep.md) | Medium | ✅ Complete | 1-3 |
 | 5 | [Crawl4AI Anti-Bot Escalation (v0.5)](05_crawl4ai_antibot.md) | Medium | ✅ Complete | 1-4 |
 | 6 | [Autonomous 24-Hour Execution](06_autonomous_24h_execution.md) | High | ✅ Complete | - |
-| 7 | [Review Fixes — Docs, Architecture, Code Smells](07_review_fixes.md) | High | 📋 Planned | - |
+| 7 | [Review Fixes — Docs, Architecture, Code Smells](07_review_fixes.md) | High | ✅ Complete | - |
 | 8 | [Async/Sync Deduplication](08_async_dedup.md) | High | 📋 Planned | 7 |
 | 9 | [grounded-research Retrieval Follow-Ups](09_grounded_research_followups.md) | High | ✅ Complete | - |
 | 10 | [Tavily Provider Parity](10_tavily_provider_parity.md) | High | ✅ Complete | research complete |

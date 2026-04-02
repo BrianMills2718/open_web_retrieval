@@ -201,7 +201,7 @@ Mock `crawl4ai` imports in tests — don't require actual Playwright/Chromium.
 - [x] Without `enable_antibot=True`, behavior identical to v0.4
 - [x] All existing 98 tests pass (104 with observability)
 - [x] 6 new escalation tests pass
-- [ ] **Gate: at least one previously-403 URL returns content via escalation**
+- [ ] **Gate: at least one previously-403 URL returns content via escalation** — Deferred; library-side verified via e2e_test.py
 
 ---
 

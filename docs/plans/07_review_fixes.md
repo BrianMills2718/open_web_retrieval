@@ -1,6 +1,6 @@
 # Plan #07: Review Fixes — Docs, Architecture, Code Smells
 
-**Status:** Planned
+**Status:** Complete
 **Type:** maintenance
 **Priority:** High
 **Blocked By:** None
@@ -91,15 +91,15 @@ fixes everything except the sync/async duplication (separate plan).
 
 ## Acceptance Criteria
 
-- [ ] README e2e path corrected
-- [ ] REQUIREMENTS.md boundaries updated, stale priorities removed
-- [ ] ROADMAP v0.5 steps collapsed, SOTA table updated
-- [ ] AGENTS.md exists
-- [ ] tool_call_logger documented
-- [ ] User-agent derived from single version constant
-- [ ] blocked_domains default-not-force pattern
-- [ ] trafilatura ModuleNotFoundError logged
-- [ ] Cache TOCTOU fixed
-- [ ] SearxNG error handling fixed
-- [ ] Stale comments cleaned
-- [ ] All 143 tests pass
+- [x] README e2e path corrected
+- [x] REQUIREMENTS.md boundaries updated, stale priorities removed
+- [x] ROADMAP v0.5 steps collapsed, SOTA table updated
+- [x] AGENTS.md exists
+- [x] tool_call_logger documented
+- [x] User-agent derived from single version constant
+- [x] blocked_domains default-not-force pattern
+- [x] trafilatura ModuleNotFoundError logged
+- [x] Cache TOCTOU fixed
+- [x] SearxNG error handling fixed
+- [x] Stale comments cleaned
+- [x] All tests pass
