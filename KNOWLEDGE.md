@@ -21,3 +21,12 @@ policy keeps worktrees disabled. Treat installer output as bounded input, not as
 an unconditional truth surface: keep the mechanical governance helpers that help
 the current wave, and revert worktree entrypoints unless the plan explicitly
 adopts sanctioned worktrees.
+
+### 2026-04-02 — codex — integration-issue
+
+Authoritative coordination rollout has two distinct claim layers: the shared
+coordination registry (`scripts/meta/check_coordination_claims.py`) and the
+repo-local worktree registry (`scripts/meta/worktree-coordination/check_claims.py`).
+Installing the sanctioned scripts is not enough by itself; a repo-local
+worktree claim must also exist before `make worktree-list` reports the active
+worktree truthfully instead of `ACTIVE (no claim)`.

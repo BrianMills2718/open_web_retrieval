@@ -1,6 +1,6 @@
 # Implementation Plans
 
-Last updated: 2026-04-01
+Last updated: 2026-04-02
 
 Track all implementation work here.
 
@@ -24,6 +24,8 @@ This file is the canonical plan-index contract for `docs/plans/`.
 | 11 | [Exa Provider Parity](11_exa_provider_parity.md) | High | ✅ Complete | research complete |
 | 12 | [Multi-Provider Search & Fetch Adapters](12_multi_provider_adapters.md) | Medium | 📋 Planned | - |
 | 13 | [Governed Baseline And Capability Ownership Rollout](13_governed-baseline-and-capability-ownership-rollout.md) | High | ✅ Complete | - |
+
+| 14 | [Authoritative coordination Wave 8 rollout](14_authoritative-coordination-wave-8-rollout.md) | High | ✅ Complete | - |
 
 ## Status Key
 
