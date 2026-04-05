@@ -9,6 +9,15 @@ from urllib.parse import urlparse
 
 import httpx
 
+try:
+    from data_contracts import boundary, BoundaryModel  # type: ignore[import-untyped]
+except ImportError:
+    def boundary(*args, **kwargs):  # type: ignore[misc]
+        def decorator(fn):  # type: ignore[misc]
+            return fn
+        return decorator
+    from pydantic import BaseModel as BoundaryModel  # type: ignore[assignment]
+
 from open_web_retrieval._version import __version__
 from open_web_retrieval.exceptions import FetchError
 from open_web_retrieval.fetch_extract import (
@@ -102,6 +111,12 @@ class AsyncSourceFetcher:
                 self.metrics.total_wait_seconds += wait
         self._last_request[domain] = time.monotonic()
 
+    @boundary(
+        name="open_web_retrieval.async_fetch",
+        version="0.1.0",
+        producer="open_web_retrieval",
+        consumers=["open_web_retrieval.client"],
+    )
     async def fetch(
         self,
         request: FetchRequest,
