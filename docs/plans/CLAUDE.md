@@ -26,6 +26,7 @@ This file is the canonical plan-index contract for `docs/plans/`.
 | 13 | [Governed Baseline And Capability Ownership Rollout](13_governed-baseline-and-capability-ownership-rollout.md) | High | ✅ Complete | - |
 
 | 14 | [Authoritative coordination Wave 8 rollout](14_authoritative-coordination-wave-8-rollout.md) | High | ✅ Complete | - |
+| 15 | [Retrieval Control Surface and Behavior Verification](15_retrieval_control_surface_and_behavior_verification.md) | High | 📋 Planned | - |
 
 ## Status Key
 

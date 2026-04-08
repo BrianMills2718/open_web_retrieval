@@ -46,23 +46,26 @@ normalized contract with unit tests plus a live smoke query. Plan #10 complete.
 search adapter, wired it into `OpenWebRetrievalClient`, and verified the deep-search
 default with unit tests plus a live smoke query. Plan #11 complete.
 
-**What's next:** v1.0 (shareable library) is still gated on ROADMAP Phase 4. For
-current consumers, the next justified provider work is either exposing
-provider-specific semantic guidance when a real consumer needs it or building
-provider-composition/fallback policy above the current normalized contract.
+**What's next:** v1.0 (shareable library) is still gated on ROADMAP Phase 4. The
+next justified provider work is Plan #15: expand the shared retrieval control
+surface so consumers can declare depth, detail, guidance, and corpus intent,
+and verify that the adapters actually honor those controls.
 
 ---
 
 ## The Path
 
-### Evidence-Driven Maintenance: grounded-research Follow-Ups
+### Evidence-Driven Maintenance: Consumer-Expressive Retrieval Controls
 
-This is not a new expansion program. It is a shared-quality follow-up triggered
-by real downstream benchmark work:
+This is not a Tyler-specific branch. It is a shared-quality follow-up triggered
+by real downstream needs:
 
-- tighten fallback handling for hard pages and PDFs
-- improve retrieval diagnostics on the existing `tool_call_logger` surface
-- normalize `trace_id` / `task` propagation across shared entrypoints
+- expand `SearchQuery` so consumers can declare retrieval depth, detail,
+  guidance, and corpus intent through the shared contract
+- verify via transport-capture tests that Tavily and Exa adapters honor those
+  declared controls
+- keep provider-specific execution inside the shared adapters rather than
+  consumer-local wrappers
 
 ### v0.5: Anti-Bot Escalation (shipped)
 
@@ -112,4 +115,5 @@ Full research: `docs/plans/01_fetch_resilience_and_crawl4ai.md`
 | 2026-03-25 | Requirements before implementation | Wrote REQUIREMENTS.md to define consumers, boundaries, success criteria before building features. |
 | 2026-03-25 | Bump to v0.4.0, not v1.0 | Version reflects feature state. v1.0 is a ROADMAP Phase 4 milestone requiring broader shareable-ecosystem readiness. |
 | 2026-03-30 | Add Tavily as a direct adapter, not a framework wrapper | Thin JSON API, existing adapter pattern fits, and direct wrapping keeps observability under repo control. |
-| 2026-03-30 | Add Exa as a direct adapter with `type="deep"` default | Live API shape fit the existing contract; deep search is the correct Tyler-oriented default. |
+| 2026-03-30 | Add Exa as a direct adapter with `type="deep"` default | Live API shape fit the existing contract; deep search was the correct initial shared default. |
+| 2026-04-08 | Expand retrieval controls only through the normalized contract | Consumers should declare what they need explicitly; provider adapters should honor those typed controls rather than rely on fixed defaults. |
