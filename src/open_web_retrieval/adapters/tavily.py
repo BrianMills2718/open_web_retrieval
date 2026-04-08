@@ -7,7 +7,12 @@ from urllib.parse import urlparse
 import httpx
 
 from open_web_retrieval.adapters.base import SearchAdapter
-from open_web_retrieval.exceptions import OpenWebRetrievalError, ProviderUnavailableError, RetrievalError
+from open_web_retrieval.exceptions import (
+    CapabilityNotSupportedError,
+    OpenWebRetrievalError,
+    ProviderUnavailableError,
+    RetrievalError,
+)
 from open_web_retrieval.models import SearchHit, SearchQuery
 
 
@@ -24,6 +29,34 @@ class TavilySearchAdapter(SearchAdapter):
     """Adapter for Tavily's hosted search API."""
 
     provider_name = "tavily"
+
+    def _resolve_search_depth(self, query: SearchQuery) -> str:
+        """Resolve Tavily search depth from the shared query contract."""
+        if query.search_depth is not None:
+            resolved = query.search_depth
+        elif query.result_detail == "summary":
+            resolved = "basic"
+        elif query.result_detail == "chunks":
+            resolved = "advanced"
+        else:
+            resolved = "advanced"
+        if resolved == "advanced" and query.result_detail == "summary":
+            raise CapabilityNotSupportedError(
+                "Tavily cannot provide summary-only detail with advanced depth",
+                context={"provider": self.provider_name, "query": query.query},
+            )
+        return resolved
+
+    def _resolve_topic(self, query: SearchQuery) -> str | None:
+        """Resolve Tavily topic hints from the shared corpus field."""
+        if query.corpus is None or query.corpus == "general":
+            return None
+        if query.corpus == "news":
+            return "news"
+        raise CapabilityNotSupportedError(
+            f"Tavily does not support corpus={query.corpus!r}",
+            context={"provider": self.provider_name, "query": query.query},
+        )
 
     def __init__(
         self,
@@ -46,20 +79,26 @@ class TavilySearchAdapter(SearchAdapter):
 
     def search(self, query: SearchQuery) -> list[SearchHit]:
         """Execute Tavily search and return normalized results."""
+        search_depth = self._resolve_search_depth(query)
         body: dict[str, object] = {
             "api_key": self.api_key,
             "query": query.query,
             "max_results": query.top_k,
-            "search_depth": "advanced",
+            "search_depth": search_depth,
             "include_answer": False,
             "include_raw_content": False,
         }
+        if search_depth == "advanced" and query.result_detail == "chunks":
+            body["chunks_per_source"] = query.detail_budget or 3
         if query.domains_allow:
             body["include_domains"] = list(query.domains_allow)
         if query.domains_deny:
             body["exclude_domains"] = list(query.domains_deny)
         if query.recency_days is not None:
             body["days"] = query.recency_days
+        topic = self._resolve_topic(query)
+        if topic is not None:
+            body["topic"] = topic
 
         try:
             response = self.client.post(self.base_url, json=body)

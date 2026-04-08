@@ -1,6 +1,6 @@
 # Plan #15: Retrieval Control Surface and Behavior Verification
 
-**Status:** 📋 Planned
+**Status:** ✅ Complete
 **Type:** implementation
 **Priority:** High
 **Blocked By:** None
@@ -16,8 +16,8 @@ contract, but the adapters still hardcode important search controls:
 - Tavily always uses `search_depth="advanced"`
 - Exa always uses `type="deep"`
 - Exa always requests one fixed highlights shape
-- consumers cannot declare semantic guidance or corpus/category intent through
-  the shared contract
+- consumers cannot declare corpus/category intent or detail mode through the
+  shared contract
 
 The repo also lacks a clear reusable verification story for behavior claims
 like "the adapter honored the requested search depth."
@@ -62,12 +62,9 @@ The shared `SearchQuery` contract should gain explicit, typed controls for:
    - optional positive integer
    - how many chunks/highlights per result to request when `result_detail`
      needs richer context
-4. `retrieval_guidance`
-   - optional free-text guidance string
-   - for providers that support query-time semantic steering
-5. `corpus`
+4. `corpus`
    - optional corpus/category hint such as `general`, `academic`, or
-     `government`
+     `news`
 
 These fields must be optional and frozen like the rest of the model.
 
@@ -82,7 +79,8 @@ These fields must be optional and frozen like the rest of the model.
 - `domains_deny` maps to `exclude_domains`
 - `recency_days` maps to `days`
 - `result_detail="chunks"` with `detail_budget=N` maps to `chunks_per_source=N`
-- if `result_detail` is unset, preserve the current lightweight default
+- `result_detail="summary"` with no explicit depth resolves to Tavily `basic`
+- if `result_detail` is unset, preserve the current provider default
 
 ### Exa
 
@@ -90,7 +88,6 @@ These fields must be optional and frozen like the rest of the model.
 - `search_depth="basic"` keeps the shallower/default search type
 - `result_detail="chunks"` enables the `contents.highlights` request block
 - `detail_budget` controls highlight count/size only when the provider supports it
-- `retrieval_guidance` maps to Exa `systemPrompt`
 - `corpus` maps to provider category controls where supported
 
 If a provider does not support a field, fail loud only when silently ignoring
@@ -120,8 +117,8 @@ it would make the consumer believe the control was honored.
 
 Pass:
 
-- `SearchQuery` exposes typed retrieval controls for depth, detail, guidance,
-  and corpus/category intent
+- `SearchQuery` exposes typed retrieval controls for depth, detail, and
+  corpus/category intent
 - existing consumers remain valid without setting the new fields
 
 Fail:
@@ -134,7 +131,7 @@ Fail:
 Pass:
 
 - Tavily tests prove the adapter sends the requested depth and chunk budget
-- Exa tests prove the adapter honors depth, detail mode, guidance, and corpus
+- Exa tests prove the adapter honors depth, detail mode, and corpus
   when configured
 
 Fail:
@@ -182,3 +179,21 @@ This wave is complete when:
 - the normalized contract exposes the new typed controls,
 - Tavily and Exa adapters honor them where supported,
 - and the docs present this as generic shared retrieval capability.
+
+## Completed 2026-04-08
+
+- expanded `SearchQuery` with typed controls for `search_depth`,
+  `result_detail`, `detail_budget`, and `corpus`
+- updated Tavily and Exa adapters to honor those controls where supported
+- updated sync and async client cache keys so search caching respects the new
+  control surface
+- added transport-capture tests that prove the provider request bodies honor
+  the declared controls
+- updated README examples to show shared retrieval controls instead of fixed
+  provider behavior
+
+## Verification Evidence
+
+- `python -m pytest tests/test_models.py tests/test_adapters.py tests/test_client.py -q`
+  - `67 passed`
+- `python -m json.tool docs/notebooks/04_retrieval_control_surface_and_behavior_verification.ipynb >/dev/null`

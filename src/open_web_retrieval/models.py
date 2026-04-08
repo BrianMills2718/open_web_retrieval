@@ -34,6 +34,19 @@ class FetchMetrics:
 
 ProviderName = Literal["brave", "searxng", "tavily", "exa"]
 RenderMode = Literal["never", "auto", "always"]
+SearchDepth = Literal["basic", "advanced"]
+ResultDetail = Literal["summary", "chunks"]
+SearchCorpus = Literal[
+    "general",
+    "news",
+    "academic",
+    "company",
+    "pdf",
+    "github",
+    "people",
+    "personal_site",
+    "financial_report",
+]
 
 
 class SearchQuery(BaseModel):
@@ -48,6 +61,24 @@ class SearchQuery(BaseModel):
     top_k: int = Field(default=10, ge=1, le=50, description="Maximum requested hits.")
     recency_days: int | None = Field(default=None, ge=1, description="Optional recency limit in days.")
     locale: str | None = Field(default=None, description="Optional provider locale/country hint.")
+    search_depth: SearchDepth | None = Field(
+        default=None,
+        description="Optional provider-agnostic search-depth hint. Use `basic` for lighter/faster retrieval and `advanced` for deeper recall.",
+    )
+    result_detail: ResultDetail | None = Field(
+        default=None,
+        description="Optional detail mode. Use `summary` for lightweight result snippets and `chunks` for richer passage/highlight retrieval when supported.",
+    )
+    detail_budget: int | None = Field(
+        default=None,
+        ge=1,
+        le=3,
+        description="Optional per-result detail budget used when `result_detail` requests richer passage/highlight retrieval.",
+    )
+    corpus: SearchCorpus | None = Field(
+        default=None,
+        description="Optional corpus/category hint for providers that support category-aware retrieval.",
+    )
     domains_allow: Sequence[str] = ()
     domains_deny: Sequence[str] = ()
 
@@ -61,6 +92,17 @@ class SearchQuery(BaseModel):
             raise ValueError("At least one provider is required.")
         unique = tuple(dict.fromkeys(providers))
         return unique
+
+    @field_validator("detail_budget")
+    @classmethod
+    def ensure_detail_budget_matches_mode(cls, detail_budget: int | None, info) -> int | None:
+        """Reject chunk budgets that contradict an explicit summary request."""
+        if detail_budget is None:
+            return None
+        result_detail = info.data.get("result_detail")
+        if result_detail == "summary":
+            raise ValueError("detail_budget requires result_detail='chunks' or an unspecified provider default")
+        return detail_budget
 
 
 class SearchHit(BaseModel):

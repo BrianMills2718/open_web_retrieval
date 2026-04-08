@@ -175,6 +175,78 @@ class TestTavilyAdapter:
         assert captured["exclude_domains"] == ["wikipedia.org"]
         assert captured["days"] == 30
 
+    def test_search_honors_configured_depth_chunks_and_corpus(self):
+        import json
+
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            payload = json.loads(request.content.decode("utf-8"))
+            captured.update(payload)
+            return httpx.Response(
+                200,
+                json={
+                    "query": payload["query"],
+                    "answer": None,
+                    "follow_up_questions": [],
+                    "images": [],
+                    "request_id": "req_test",
+                    "response_time": 0.1,
+                    "results": [],
+                },
+                request=request,
+            )
+
+        adapter = TavilySearchAdapter(
+            api_key="key",
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+        query = SearchQuery(
+            query="test",
+            providers=("tavily",),
+            search_depth="advanced",
+            result_detail="chunks",
+            detail_budget=2,
+            corpus="news",
+        )
+        hits = adapter.search(query)
+        assert hits == []
+        assert captured["search_depth"] == "advanced"
+        assert captured["chunks_per_source"] == 2
+        assert captured["topic"] == "news"
+
+    def test_summary_detail_without_explicit_depth_uses_basic(self):
+        import json
+
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            payload = json.loads(request.content.decode("utf-8"))
+            captured.update(payload)
+            return httpx.Response(
+                200,
+                json={
+                    "query": payload["query"],
+                    "answer": None,
+                    "follow_up_questions": [],
+                    "images": [],
+                    "request_id": "req_test",
+                    "response_time": 0.1,
+                    "results": [],
+                },
+                request=request,
+            )
+
+        adapter = TavilySearchAdapter(
+            api_key="key",
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+        query = SearchQuery(query="test", providers=("tavily",), result_detail="summary")
+        hits = adapter.search(query)
+        assert hits == []
+        assert captured["search_depth"] == "basic"
+        assert "chunks_per_source" not in captured
+
 
 class TestExaAdapter:
     def test_search_returns_normalized_hits(self, exa_adapter):
@@ -234,6 +306,78 @@ class TestExaAdapter:
         assert captured["includeDomains"] == ["epa.gov"]
         assert captured["excludeDomains"] == ["wikipedia.org"]
         assert "startPublishedDate" in captured
+
+    def test_search_honors_summary_mode_and_corpus(self):
+        import json
+
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            payload = json.loads(request.content.decode("utf-8"))
+            captured.update(payload)
+            return httpx.Response(
+                200,
+                json={
+                    "requestId": "req_exa",
+                    "resolvedSearchType": "auto",
+                    "searchTime": 0.1,
+                    "costDollars": {"total": 0.01},
+                    "results": [],
+                },
+                request=request,
+            )
+
+        adapter = ExaSearchAdapter(
+            api_key="key",
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+        query = SearchQuery(
+            query="test",
+            providers=("exa",),
+            result_detail="summary",
+            corpus="academic",
+        )
+        hits = adapter.search(query)
+        assert hits == []
+        assert "type" not in captured
+        assert "contents" not in captured
+        assert captured["category"] == "research paper"
+
+    def test_search_honors_chunk_budget(self):
+        import json
+
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            payload = json.loads(request.content.decode("utf-8"))
+            captured.update(payload)
+            return httpx.Response(
+                200,
+                json={
+                    "requestId": "req_exa",
+                    "resolvedSearchType": "deep",
+                    "searchTime": 0.1,
+                    "costDollars": {"total": 0.01},
+                    "results": [],
+                },
+                request=request,
+            )
+
+        adapter = ExaSearchAdapter(
+            api_key="key",
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+        query = SearchQuery(
+            query="test",
+            providers=("exa",),
+            search_depth="advanced",
+            result_detail="chunks",
+            detail_budget=3,
+        )
+        hits = adapter.search(query)
+        assert hits == []
+        assert captured["type"] == "deep"
+        assert captured["contents"]["highlights"]["highlightsPerUrl"] == 3
 
 
 class TestParsePublished:

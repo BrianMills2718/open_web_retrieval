@@ -117,7 +117,12 @@ class AsyncOpenWebRetrievalClient:
 
     def _search_cache_key(self, query: SearchQuery, provider: str) -> str:
         """Build a deterministic cache key for a search query + provider."""
-        return f"search:{provider}:{query.query}:top_k={query.top_k}:recency={query.recency_days}"
+        return (
+            "search:"
+            f"{provider}:{query.query}:top_k={query.top_k}:recency={query.recency_days}"
+            f":depth={query.search_depth}:detail={query.result_detail}:budget={query.detail_budget}"
+            f":corpus={query.corpus}:allow={','.join(query.domains_allow)}:deny={','.join(query.domains_deny)}"
+        )
 
     async def search(
         self,

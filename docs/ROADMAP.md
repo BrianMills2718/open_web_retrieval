@@ -1,7 +1,7 @@
 # open_web_retrieval — Roadmap
 
 **Status**: Active
-**Last updated**: 2026-03-30
+**Last updated**: 2026-04-08
 
 See `REQUIREMENTS.md` for capabilities inventory and success criteria.
 
@@ -46,10 +46,15 @@ normalized contract with unit tests plus a live smoke query. Plan #10 complete.
 search adapter, wired it into `OpenWebRetrievalClient`, and verified the deep-search
 default with unit tests plus a live smoke query. Plan #11 complete.
 
+**v0.8.1 (shipped, 2026-04-08):** Consumer-expressive retrieval controls.
+`SearchQuery` now exposes typed shared controls for search depth, result
+detail, detail budget, and corpus intent. Tavily and Exa honor those controls
+through verified adapter request-body tests. Plan #15 complete.
+
 **What's next:** v1.0 (shareable library) is still gated on ROADMAP Phase 4. The
-next justified provider work is Plan #15: expand the shared retrieval control
-surface so consumers can declare depth, detail, guidance, and corpus intent,
-and verify that the adapters actually honor those controls.
+shared retrieval control surface is now typed and verified for Tavily and Exa.
+The next justified provider work is expanding those controls only when a real
+consumer needs more than the current shared contract.
 
 ---
 
@@ -61,7 +66,7 @@ This is not a Tyler-specific branch. It is a shared-quality follow-up triggered
 by real downstream needs:
 
 - expand `SearchQuery` so consumers can declare retrieval depth, detail,
-  guidance, and corpus intent through the shared contract
+  and corpus intent through the shared contract
 - verify via transport-capture tests that Tavily and Exa adapters honor those
   declared controls
 - keep provider-specific execution inside the shared adapters rather than

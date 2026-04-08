@@ -63,6 +63,17 @@ hits = client.search(query)
 for hit in hits:
     print(f"{hit.rank}. {hit.title} — {hit.url}")
 
+# Search with explicit shared retrieval controls
+query = SearchQuery(
+    query="PFAS drinking water regulation",
+    providers=["tavily", "exa"],
+    top_k=5,
+    search_depth="advanced",
+    result_detail="chunks",
+    detail_budget=2,
+    corpus="news",
+)
+
 # Full pipeline: search + fetch + extract
 batch = client.retrieve(query, allow_partial=True)
 for record in batch.records:

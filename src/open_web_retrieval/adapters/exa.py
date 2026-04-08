@@ -8,7 +8,12 @@ from urllib.parse import urlparse
 import httpx
 
 from open_web_retrieval.adapters.base import SearchAdapter
-from open_web_retrieval.exceptions import OpenWebRetrievalError, ProviderUnavailableError, RetrievalError
+from open_web_retrieval.exceptions import (
+    CapabilityNotSupportedError,
+    OpenWebRetrievalError,
+    ProviderUnavailableError,
+    RetrievalError,
+)
 from open_web_retrieval.models import SearchHit, SearchQuery
 
 
@@ -56,6 +61,45 @@ class ExaSearchAdapter(SearchAdapter):
 
     provider_name = "exa"
 
+    _CORPUS_MAP = {
+        "academic": "research paper",
+        "company": "company",
+        "pdf": "pdf",
+        "github": "github",
+        "people": "people",
+        "personal_site": "personal site",
+        "financial_report": "financial report",
+        "news": "news",
+    }
+
+    def _build_contents(self, query: SearchQuery) -> dict[str, object] | None:
+        """Build Exa contents/highlights settings from the shared detail controls."""
+        if query.result_detail == "summary":
+            return None
+
+        if query.result_detail == "chunks" or query.result_detail is None:
+            highlights_per_url = query.detail_budget or 1
+            return {
+                "highlights": {
+                    "query": query.query,
+                    "numSentences": 1,
+                    "highlightsPerUrl": highlights_per_url,
+                },
+            }
+        return None
+
+    def _apply_corpus(self, body: dict[str, object], query: SearchQuery) -> None:
+        """Map generic corpus hints to Exa's category controls where supported."""
+        if query.corpus is None or query.corpus == "general":
+            return
+        category = self._CORPUS_MAP.get(query.corpus)
+        if category is None:
+            raise CapabilityNotSupportedError(
+                f"Exa does not support corpus={query.corpus!r}",
+                context={"provider": self.provider_name, "query": query.query},
+            )
+        body["category"] = category
+
     def __init__(
         self,
         *,
@@ -79,15 +123,15 @@ class ExaSearchAdapter(SearchAdapter):
         """Execute Exa search and return normalized results."""
         body: dict[str, object] = {
             "query": query.query,
-            "type": "deep",
             "numResults": query.top_k,
-            "contents": {
-                "highlights": {
-                    "query": query.query,
-                    "maxCharacters": 1200,
-                },
-            },
         }
+        if query.search_depth == "advanced" or (
+            query.search_depth is None and query.result_detail != "summary"
+        ):
+            body["type"] = "deep"
+        contents = self._build_contents(query)
+        if contents is not None:
+            body["contents"] = contents
         if query.domains_allow:
             body["includeDomains"] = list(query.domains_allow)
         if query.domains_deny:
@@ -95,6 +139,7 @@ class ExaSearchAdapter(SearchAdapter):
         start_published_date = _recency_start_iso(query.recency_days)
         if start_published_date is not None:
             body["startPublishedDate"] = start_published_date
+        self._apply_corpus(body, query)
 
         headers = {
             "x-api-key": self.api_key,

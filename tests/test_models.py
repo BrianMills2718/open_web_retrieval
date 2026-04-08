@@ -22,6 +22,8 @@ class TestSearchQuery:
         assert q.top_k == 10
         assert "brave" in q.providers
         assert q.recency_days is None
+        assert q.search_depth is None
+        assert q.result_detail is None
 
     def test_frozen(self):
         q = SearchQuery(query="test")
@@ -60,10 +62,22 @@ class TestSearchQuery:
         assert "spam.com" in q.domains_deny
 
     def test_round_trip_json(self):
-        q = SearchQuery(query="test query", providers=("brave",), top_k=5)
+        q = SearchQuery(
+            query="test query",
+            providers=("brave",),
+            top_k=5,
+            search_depth="advanced",
+            result_detail="chunks",
+            detail_budget=2,
+            corpus="news",
+        )
         data = q.model_dump()
         q2 = SearchQuery(**data)
         assert q == q2
+
+    def test_detail_budget_rejected_for_summary_mode(self):
+        with pytest.raises(Exception):
+            SearchQuery(query="test", result_detail="summary", detail_budget=1)
 
 
 class TestSearchHit:
