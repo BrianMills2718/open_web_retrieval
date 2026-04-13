@@ -53,6 +53,8 @@ from open_web_retrieval.models import SearchHit, SearchQuery
     description="Search the web using Brave Search API",
     cost_tier="cheap",
     goal="research-quality",
+    complexity=1,
+    designed_for="Fast hosted web search for general evidence gathering",
     result_type=SearchHit,
 )
 @boundary(
@@ -89,6 +91,9 @@ async def brave_search(
     domain="web",
     description="Search the web using a local SearxNG instance",
     cost_tier="free",
+    goal="research-quality",
+    complexity=1,
+    designed_for="Low-cost local web search when a SearxNG instance is available",
     result_type=SearchHit,
 )
 @boundary(
@@ -125,6 +130,9 @@ async def searxng_search(
     domain="web",
     description="Search the web using Tavily's hosted search API",
     cost_tier="cheap",
+    goal="research-quality",
+    complexity=2,
+    designed_for="Hosted research search with depth and domain-filter controls",
     result_type=SearchHit,
 )
 @boundary(
@@ -171,6 +179,9 @@ async def tavily_search(
     domain="web",
     description="Search the web using Exa's deep search API",
     cost_tier="moderate",
+    goal="research-quality",
+    complexity=3,
+    designed_for="Deep semantic web search when richer recall justifies higher cost",
     result_type=SearchHit,
 )
 @boundary(

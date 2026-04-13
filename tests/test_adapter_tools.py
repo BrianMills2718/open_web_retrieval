@@ -127,24 +127,33 @@ class TestToolRegistration:
         assert info is not None
         assert info.domain == "web"
         assert info.cost_tier == "cheap"
+        assert info.goal == "research-quality"
+        assert info.complexity == 1
+        assert info.designed_for == "Fast hosted web search for general evidence gathering"
 
     def test_searxng_registered(self):
         info = registry.get("searxng_search")
         assert info is not None
         assert info.domain == "web"
         assert info.cost_tier == "free"
+        assert info.goal == "research-quality"
+        assert info.complexity == 1
 
     def test_tavily_registered(self):
         info = registry.get("tavily_search")
         assert info is not None
         assert info.domain == "web"
         assert info.cost_tier == "cheap"
+        assert info.goal == "research-quality"
+        assert info.complexity == 2
 
     def test_exa_registered(self):
         info = registry.get("exa_search")
         assert info is not None
         assert info.domain == "web"
         assert info.cost_tier == "moderate"
+        assert info.goal == "research-quality"
+        assert info.complexity == 3
 
     def test_list_by_domain_returns_all_four(self):
         web_tools = registry.list_by_domain("web")
