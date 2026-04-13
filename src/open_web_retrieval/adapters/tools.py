@@ -52,6 +52,7 @@ from open_web_retrieval.models import SearchHit, SearchQuery
     domain="web",
     description="Search the web using Brave Search API",
     cost_tier="cheap",
+    goal="research-quality",
     result_type=SearchHit,
 )
 @boundary(
