@@ -5,6 +5,10 @@ publish:
     type: ProjectOverview
     title: Open Web Retrieval Overview
     tags: [portfolio, shared-infrastructure, retrieval]
+  - path: docs/RETRIEVAL_TRACE_EXAMPLE.md
+    type: PortfolioGuide
+    title: Open Web Retrieval Trace Example
+    tags: [portfolio, retrieval, osint]
   - path: docs/REQUIREMENTS.md
     type: Requirements
     tags: [retrieval, requirements]
