@@ -98,6 +98,32 @@ for record in batch.records:
         print(doc.markdown[:500])  # Markdown output from trafilatura
 ```
 
+### Medium
+
+```python
+from open_web_retrieval import (
+    search_medium_query, fetch_medium_article, parse_medium_feed,
+)
+from open_web_retrieval.adapters.tools import brave_search
+
+# 1. Discover articles by topic (Medium has no search API → scope a web search)
+hits = await brave_search(query=search_medium_query("osint techniques"), api_key="...")
+
+# 2. Fetch full text, with the member-paywall fallback ladder
+#    (cookie → headless browser+cookie → Freedium → archive.today).
+#    Set MEDIUM_SID (membership cookie) in the env for first-party full text.
+article = fetch_medium_article(hits[0].url)
+print(article.method, article.paywalled, len(article.text))
+
+# 3. Monitor a known author / publication — full text from RSS, no paywall
+for item in parse_medium_feed("towards-data-science", kind="publication", limit=5):
+    print(item.title, len(item.text))
+```
+
+Paywall handling needs either `MEDIUM_SID` (your membership cookie, for
+authenticated first-party fetch) and/or the `[render]` extra (headless browser
+to pass Medium's anti-bot). Without either, it falls back to public proxies.
+
 ## Features
 
 | Feature | Details |

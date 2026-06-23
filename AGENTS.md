@@ -16,7 +16,7 @@ Canonical governance sources:
 
 ## Purpose
 
-**Version:** 0.8.0
+**Version:** 0.9.0
 **Last verified:** 2026-04-01
 
 This repo is the shared open-web retrieval boundary.

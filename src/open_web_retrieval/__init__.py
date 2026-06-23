@@ -24,6 +24,13 @@ from open_web_retrieval.exceptions import (
 )
 from open_web_retrieval.fetch_extract import SourceFetcher
 from open_web_retrieval.models import FetchMetrics
+from open_web_retrieval.medium import (
+    MediumArticle,
+    MediumFeedItem,
+    fetch_medium_article,
+    parse_medium_feed,
+    search_medium_query,
+)
 
 __all__ = [
     "AsyncOpenWebRetrievalClient",
@@ -34,6 +41,8 @@ __all__ = [
     "ExtractedDocument",
     "FetchRequest",
     "FetchedResource",
+    "MediumArticle",
+    "MediumFeedItem",
     "OpenWebRetrievalClient",
     "OpenWebRetrievalError",
     "ProviderUnavailableError",
@@ -46,11 +55,17 @@ __all__ = [
     "SearchQuery",
     "SourceRecord",
     "SourceRecordBatch",
+    "fetch_medium_article",
+    "parse_medium_feed",
+    "search_medium_query",
     "__version__",
 ]
 
 # Auto-register @tool decorated functions
 try:
-    from open_web_retrieval.adapters.tools import brave_search, searxng_search, tavily_search, exa_search  # noqa: F401
+    from open_web_retrieval.adapters.tools import (  # noqa: F401
+        brave_search, searxng_search, tavily_search, exa_search,
+        medium_search, medium_get_article, medium_feed,
+    )
 except ImportError:
     pass  # llm_client not installed

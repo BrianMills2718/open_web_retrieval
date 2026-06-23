@@ -1,6 +1,6 @@
 # open_web_retrieval - Canonical Repo Instructions
 
-**Version:** 0.8.0
+**Version:** 0.9.0
 **Last verified:** 2026-04-01
 
 This repo is the shared open-web retrieval boundary.
@@ -13,6 +13,7 @@ This repo is the shared open-web retrieval boundary.
 - Anti-bot: optional Crawl4AI escalation on 403 (`enable_antibot=True`).
 - SPA detection: auto-render JS shells via Playwright when extraction produces garbage.
 - Extract: text and markdown output via Trafilatura, with title/author/date/sitename metadata.
+- Medium: topic search (`site:medium.com` scoping), full-text article fetch with a member-paywall fallback ladder (cookie → headless-browser+cookie → Freedium → archive.today), and full-text RSS feeds for known authors/publications. See `src/open_web_retrieval/medium.py`.
 - Provenance: every operation records provider, URL lineage, and fetch/extract method.
 
 ## Commands

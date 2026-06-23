@@ -44,6 +44,13 @@ from open_web_retrieval.adapters.brave import BraveSearchAdapter
 from open_web_retrieval.adapters.exa import ExaSearchAdapter
 from open_web_retrieval.adapters.searxng import SearxNGSearchAdapter
 from open_web_retrieval.adapters.tavily import TavilySearchAdapter
+from open_web_retrieval.medium import (
+    MediumArticle,
+    MediumFeedItem,
+    fetch_medium_article as _fetch_medium_article,
+    parse_medium_feed as _parse_medium_feed,
+    search_medium_query,
+)
 from open_web_retrieval.models import SearchHit, SearchQuery
 
 
@@ -221,3 +228,102 @@ async def exa_search(
         return await asyncio.to_thread(adapter.search, search_query)
     finally:
         adapter.close()
+
+
+@tool(
+    name="medium_search",
+    domain="web",
+    description="Search Medium articles on a topic via Brave (site:medium.com scope)",
+    cost_tier="cheap",
+    goal="research-quality",
+    complexity=1,
+    designed_for="Discovering Medium articles by topic; Medium has no search API",
+    result_type=SearchHit,
+)
+@boundary(
+    name="open_web_retrieval.medium_search",
+    version="0.1.0",
+    producer="open_web_retrieval",
+)
+async def medium_search(
+    topic: str,
+    api_key: str,
+    *,
+    top_k: int = 10,
+    publications: Sequence[str] = (),
+    timeout_seconds: float | None = None,
+) -> list[SearchHit]:
+    """Search Medium for a topic by scoping a Brave web search to medium.com."""
+    query = search_medium_query(topic, publications=list(publications))
+    search_query = SearchQuery(query=query, providers=("brave",), top_k=top_k)
+    adapter = BraveSearchAdapter(api_key=api_key, timeout_seconds=timeout_seconds)
+    try:
+        return await asyncio.to_thread(adapter.search, search_query)
+    finally:
+        adapter.close()
+
+
+@tool(
+    name="medium_get_article",
+    domain="web",
+    description="Fetch a Medium article's full text, bypassing the member paywall",
+    cost_tier="cheap",
+    goal="research-quality",
+    complexity=2,
+    designed_for="Reading a Medium article in full, including member-only stories",
+    result_type=MediumArticle,
+)
+@boundary(
+    name="open_web_retrieval.medium_get_article",
+    version="0.1.0",
+    producer="open_web_retrieval",
+)
+async def medium_get_article(
+    url: str,
+    *,
+    sid: str | None = None,
+    uid: str | None = None,
+    enable_fallback: bool = True,
+    timeout_seconds: float | None = 30.0,
+) -> MediumArticle:
+    """Fetch full Medium article text via cookie → Freedium → archive ladder."""
+    return await asyncio.to_thread(
+        _fetch_medium_article,
+        url,
+        sid=sid,
+        uid=uid,
+        enable_fallback=enable_fallback,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+@tool(
+    name="medium_feed",
+    domain="web",
+    description="Read full article text from a Medium author/publication RSS feed",
+    cost_tier="free",
+    goal="research-quality",
+    complexity=1,
+    designed_for="Monitoring a known Medium author or publication (full text, no paywall)",
+    result_type=MediumFeedItem,
+)
+@boundary(
+    name="open_web_retrieval.medium_feed",
+    version="0.1.0",
+    producer="open_web_retrieval",
+)
+async def medium_feed(
+    handle: str,
+    *,
+    kind: str = "author",
+    limit: int = 20,
+    timeout_seconds: float | None = 30.0,
+) -> list[MediumFeedItem]:
+    """Read a Medium author/publication/tag RSS feed (full text via content:encoded)."""
+    return await asyncio.to_thread(
+        _parse_medium_feed,
+        handle,
+        kind=kind,
+        limit=limit,
+        timeout_seconds=timeout_seconds,
+    )
