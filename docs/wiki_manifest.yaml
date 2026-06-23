@@ -1,10 +1,34 @@
 version: 1
 project: open_web_retrieval
 publish:
+  - path: PROJECT.md
+    type: ProjectDossier
+    title: Open Web Retrieval Project Dossier
+    tags: [portfolio, shared-infrastructure, retrieval, dossier]
   - path: README.md
     type: ProjectOverview
     title: Open Web Retrieval Overview
     tags: [portfolio, shared-infrastructure, retrieval]
+  - path: docs/METHODOLOGY.md
+    type: Methodology
+    title: Open Web Retrieval Methodology
+    tags: [portfolio, retrieval, methodology]
+  - path: docs/ARTIFACTS.md
+    type: ArtifactRegister
+    title: Open Web Retrieval Artifact Register
+    tags: [portfolio, retrieval, artifacts]
+  - path: docs/VALIDATION.md
+    type: Validation
+    title: Open Web Retrieval Validation Register
+    tags: [portfolio, retrieval, validation]
+  - path: docs/CONCERNS.md
+    type: ConcernRegister
+    title: Open Web Retrieval Concern Register
+    tags: [portfolio, retrieval, concerns]
+  - path: docs/adr/0001_retrieval_substrate_scope.md
+    type: ADR
+    title: Keep Open Web Retrieval A Shared Retrieval Substrate
+    tags: [retrieval, shared-infrastructure, architecture]
   - path: docs/RETRIEVAL_TRACE_EXAMPLE.md
     type: PortfolioGuide
     title: Open Web Retrieval Trace Example
