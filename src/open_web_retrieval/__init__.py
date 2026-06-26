@@ -24,6 +24,7 @@ from open_web_retrieval.exceptions import (
 )
 from open_web_retrieval.fetch_extract import SourceFetcher
 from open_web_retrieval.models import FetchMetrics
+from open_web_retrieval.search_log import SearchLog
 
 __all__ = [
     "AsyncOpenWebRetrievalClient",
@@ -41,6 +42,7 @@ __all__ = [
     "FetchMetrics",
     "RenderError",
     "RetrievalError",
+    "SearchLog",
     "SourceFetcher",
     "SearchHit",
     "SearchQuery",

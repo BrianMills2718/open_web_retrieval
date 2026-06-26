@@ -27,6 +27,7 @@ from open_web_retrieval.observability import (
     query_sha256,
     utc_now_iso,
 )
+from open_web_retrieval.search_log import SearchLog
 
 try:
     from data_contracts import boundary
@@ -68,6 +69,7 @@ class OpenWebRetrievalClient:
         tool_call_logger: ToolCallLogger | None = None,
         enable_antibot: bool = False,
         enable_auto_render: bool = True,
+        search_log_path: str | Path | None = None,
     ) -> None:
         """Configure provider adapters, fetcher, and optional disk cache.
 
@@ -115,6 +117,8 @@ class OpenWebRetrievalClient:
         self.default_providers = tuple(self.adapters.adapters.keys())
         self.tool_call_logger = tool_call_logger
 
+        self._search_log: SearchLog | None = SearchLog(search_log_path) if search_log_path is not None else None
+
         self._search_cache: DiskCache | None = None
         self._fetch_cache: DiskCache | None = None
         if cache_dir is not None:
@@ -125,10 +129,11 @@ class OpenWebRetrievalClient:
     def close(self) -> None:
         """Release resources held by the client and its fetcher."""
         self.fetcher.close()
-        # Close any adapter clients
         for adapter in self.adapters.adapters.values():
             if hasattr(adapter, 'close'):
                 adapter.close()
+        if self._search_log is not None:
+            self._search_log.close()
 
     def __enter__(self):
         """Enter context manager."""
@@ -196,7 +201,8 @@ class OpenWebRetrievalClient:
                 continue
             call_id = make_tool_call_id()
             started_at = utc_now_iso()
-            started_monotonic = time.monotonic() if self.tool_call_logger is not None else None
+            _needs_timing = self.tool_call_logger is not None or self._search_log is not None
+            started_monotonic = time.monotonic() if _needs_timing else None
             common_metrics = {
                 "query_sha256": query_sha256(query.query),
                 "top_k": query.top_k,
@@ -238,6 +244,17 @@ class OpenWebRetrievalClient:
                 if self._search_cache is not None and hits:
                     cache_key = self._search_cache_key(query, provider)
                     self._search_cache.set(cache_key, [h.model_dump(mode="json") for h in hits])
+                if self._search_log is not None:
+                    self._search_log.log_search(
+                        timestamp=started_at,
+                        query=query.query,
+                        provider=provider,
+                        num_results=len(hits),
+                        latency_ms=duration_ms(started_monotonic) if started_monotonic is not None else None,
+                        trace_id=trace_id,
+                        task=task,
+                        top_sources=[h.url for h in hits[:5]],
+                    )
             except OpenWebRetrievalError as exc:
                 emit_tool_call(
                     self.tool_call_logger,
@@ -257,6 +274,16 @@ class OpenWebRetrievalClient:
                     error_type=exc.__class__.__name__,
                     error_message=str(exc),
                 )
+                if self._search_log is not None:
+                    self._search_log.log_search(
+                        timestamp=started_at,
+                        query=query.query,
+                        provider=provider,
+                        latency_ms=duration_ms(started_monotonic) if started_monotonic is not None else None,
+                        trace_id=trace_id,
+                        task=task,
+                        error=f"{exc.__class__.__name__}: {exc}",
+                    )
                 failures.append(f"{provider}: {exc.error_code}")
             except Exception as exc:  # pragma: no cover - defensive hard fail
                 raise RuntimeError(f"unhandled provider exception for {provider}") from exc
