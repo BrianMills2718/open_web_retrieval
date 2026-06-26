@@ -33,6 +33,19 @@ help:  ## Show this help
 
 .DEFAULT_GOAL := help
 
+# ── Workbench ──────────────────────────────────────────────────────────────
+.PHONY: workbench-backend workbench-frontend workbench-install
+
+workbench-backend:  ## Start workbench backend on :5205
+	cd workbench/backend && uvicorn server:app --host 0.0.0.0 --port 5205 --reload
+
+workbench-frontend:  ## Start workbench frontend on :5206
+	cd workbench/frontend && npm run dev
+
+workbench-install:  ## Install workbench dependencies
+	pip install fastapi "uvicorn[standard]"
+	cd workbench/frontend && npm install
+
 # >>> META-PROCESS WORKTREE TARGETS >>>
 WORKTREE_CREATE_SCRIPT := scripts/meta/worktree-coordination/create_worktree.py
 WORKTREE_REMOVE_SCRIPT := scripts/meta/worktree-coordination/safe_worktree_remove.py

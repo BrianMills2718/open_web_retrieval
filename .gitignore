@@ -10,3 +10,5 @@ build/
 .claude/hook_log.jsonl
 .claude/sessions/
 worktrees/
+workbench/frontend/node_modules/
+workbench/frontend/dist/
